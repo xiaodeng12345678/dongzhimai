@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>冬之脉 - Final Farewell</title>
     <style>
         body {
@@ -13,12 +13,15 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            height: 100vh;
+            /* 使用 dvh 適配移動端動態高度 */
+            height: 100dvh; 
             color: #ccc;
             font-family: 'Courier New', Courier, monospace;
-            touch-action: none; /* 禁止 iOS 回彈 */
-            -webkit-user-select: none; /* 禁止選中文字 */
+            touch-action: none;
+            -webkit-user-select: none;
             user-select: none;
+            /* 禁用長按菜單 */
+            -webkit-touch-callout: none;
         }
 
         #game-container {
@@ -34,29 +37,28 @@
         canvas {
             image-rendering: pixelated;
             box-shadow: 0 0 20px rgba(0, 0, 50, 0.5);
-            max-width: 100%;
-            max-height: 100%;
+            /* 保持 4:3 比例但適應屏幕 */
+            width: 100%;
+            max-width: 100vh; /* 橫屏限制 */
+            aspect-ratio: 4/3;
+            object-fit: contain;
             transition: filter 2s ease;
         }
 
         /* 掃描線 */
         .scanlines {
             position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
+            top: 0; left: 0; width: 100%; height: 100%;
             background: linear-gradient(to bottom, rgba(255,255,255,0), rgba(255,255,255,0) 50%, rgba(0,0,0,0.1) 50%, rgba(0,0,0,0.1));
             background-size: 100% 4px;
             pointer-events: none;
             z-index: 10;
         }
 
-        /* UI 元素 */
+        /* UI */
         .room-title {
             position: absolute;
-            top: 20px;
-            left: 20px;
+            top: 20px; left: 20px;
             color: rgba(255, 255, 255, 0.6);
             font-size: 14px;
             z-index: 15;
@@ -66,10 +68,8 @@
 
         #inventory {
             position: absolute;
-            top: 20px;
-            right: 20px;
-            display: flex;
-            gap: 10px;
+            top: 20px; right: 20px;
+            display: flex; gap: 10px;
             z-index: 15;
             pointer-events: none;
         }
@@ -84,20 +84,17 @@
 
         #ui-layer {
             position: absolute;
-            bottom: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            width: 90%;
-            max-width: 600px;
-            background: #000;
-            border: 2px solid #fff;
+            bottom: 30%; /* 上移避免被手把遮擋 */
+            left: 50%; transform: translateX(-50%);
+            width: 80%;
+            background: rgba(0,0,0,0.85);
+            border: 1px solid #fff;
             padding: 15px;
             font-size: 16px;
             line-height: 1.5;
             display: none;
             z-index: 20;
-            box-shadow: 0 0 10px #fff;
-            pointer-events: none; /* 讓點擊穿透 */
+            pointer-events: none;
         }
 
         #ending-overlay {
@@ -110,105 +107,108 @@
             transition: opacity 3s;
         }
 
-        /* --- iOS 修復版手把 --- */
+        /* --- 修正版虛擬手把 --- */
         #mobile-controls {
-            display: none; /* JS 控制顯示 */
+            display: none; 
             position: absolute;
-            bottom: 0;
-            left: 0;
-            width: 100%;
-            height: 100%; /* 全屏覆蓋以便佈局 */
+            bottom: 0; left: 0; width: 100%; height: 100%;
             z-index: 40;
             pointer-events: none;
         }
-
-        /* 強制顯示類 */
         #mobile-controls.visible { display: block; }
 
         .dpad-area {
             position: absolute;
-            bottom: 20px;
+            /* 增加底部距離，避開 Home Bar */
+            bottom: max(30px, env(safe-area-inset-bottom) + 20px);
             left: 20px;
-            width: 140px;
-            height: 140px;
-            pointer-events: auto; /* 允許觸摸 */
+            width: 150px; height: 150px; /* 加大觸摸區域 */
+            pointer-events: auto;
         }
 
         .action-area {
             position: absolute;
-            bottom: 40px;
+            /* 增加底部距離 */
+            bottom: max(50px, env(safe-area-inset-bottom) + 40px);
             right: 30px;
-            width: 80px;
-            height: 80px;
+            width: 90px; height: 90px;
             pointer-events: auto;
         }
 
-        /* D-Pad 樣式 */
-        .dpad-btn {
-            position: absolute;
-            width: 33%; height: 33%;
+        .dpad-btn, .btn-a {
             background: rgba(255, 255, 255, 0.1);
-            border: 1px solid rgba(255, 255, 255, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.3);
             display: flex; justify-content: center; align-items: center;
-            font-size: 20px; color: rgba(255,255,255,0.5);
+            color: rgba(255,255,255,0.6);
             touch-action: none;
+            position: absolute;
         }
-        .dpad-btn:active { background: rgba(255, 255, 255, 0.4); }
-        .d-up { top: 0; left: 33%; border-radius: 5px 5px 0 0; }
-        .d-down { bottom: 0; left: 33%; border-radius: 0 0 5px 5px; }
-        .d-left { top: 33%; left: 0; border-radius: 5px 0 0 5px; }
-        .d-right { top: 33%; right: 0; border-radius: 0 5px 5px 0; }
         
-        /* A Button */
+        /* 按下反饋 */
+        .active-btn { background: rgba(255, 255, 255, 0.4) !important; }
+
+        .d-up { top: 0; left: 33%; width: 34%; height: 33%; border-radius: 8px 8px 0 0; }
+        .d-down { bottom: 0; left: 33%; width: 34%; height: 33%; border-radius: 0 0 8px 8px; }
+        .d-left { top: 33%; left: 0; width: 33%; height: 34%; border-radius: 8px 0 0 8px; }
+        .d-right { top: 33%; right: 0; width: 33%; height: 34%; border-radius: 0 8px 8px 0; }
+        
         .btn-a {
             width: 100%; height: 100%;
             border-radius: 50%;
-            background: rgba(255, 255, 255, 0.15);
-            border: 2px solid rgba(255, 255, 255, 0.3);
-            color: #fff;
             font-size: 24px;
-            display: flex; justify-content: center; align-items: center;
-            touch-action: none;
+            font-weight: bold;
         }
-        .btn-a:active { background: rgba(255, 255, 255, 0.5); }
 
-        /* 開始按鈕 - 修復 iOS 音頻 */
+        /* 開始畫面 */
         #start-screen {
             position: absolute;
             top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.9);
+            background: rgba(0,0,0,0.95);
             z-index: 100;
             display: flex;
             flex-direction: column;
             justify-content: center;
             align-items: center;
             color: #fff;
+            padding: 20px;
+            text-align: center;
         }
         #start-btn {
-            padding: 15px 30px;
+            margin-top: 30px;
+            padding: 20px 40px;
             border: 2px solid #fff;
-            background: transparent;
+            background: rgba(255,255,255,0.1);
             color: #fff;
-            font-family: inherit;
-            font-size: 18px;
-            cursor: pointer;
-            margin-top: 20px;
+            font-size: 20px;
+            border-radius: 10px;
+        }
+        
+        /* 聲音狀態圖標 */
+        #audio-status {
+            position: absolute;
+            top: 10px; right: 10px;
+            z-index: 60;
+            font-size: 20px;
+            opacity: 0.5;
         }
     </style>
 </head>
 <body>
 
 <div id="game-container">
+    <div id="audio-status">🔇</div>
     <canvas id="gameCanvas" width="320" height="240"></canvas>
     <div class="scanlines"></div>
     <div class="room-title" id="room-name"></div>
     <div id="ending-overlay"></div>
     
-    <!-- 開始畫面 (iOS 音頻必須) -->
+    <!-- 開始畫面 -->
     <div id="start-screen">
-        <div style="margin-bottom:10px;">冬之脉 - Final Farewell</div>
-        <button id="start-btn">點擊開始旅程</button>
-        <div style="font-size:12px; color:#888; margin-top:10px;">請開啟聲音並關閉靜音模式</div>
+        <h2 style="margin-bottom:10px;">冬之脉 - Final Farewell</h2>
+        <p style="font-size:14px; color:#aaa; max-width: 300px;">
+            請確保關閉手機的「靜音模式」(側邊開關)，否則可能無法聽到聲音。
+        </p>
+        <button id="start-btn">開始旅程</button>
     </div>
 
     <div id="inventory">
@@ -245,6 +245,7 @@ const endingOverlay = document.getElementById('ending-overlay');
 const startScreen = document.getElementById('start-screen');
 const startBtn = document.getElementById('start-btn');
 const mobileControls = document.getElementById('mobile-controls');
+const audioStatus = document.getElementById('audio-status');
 
 const invItems = {
     west: document.getElementById('item-west'),
@@ -256,7 +257,7 @@ const GAME_WIDTH = 320;
 const GAME_HEIGHT = 240;
 const SPEED = 2;
 
-// --- 音頻系統 (iOS 修復版) ---
+// --- 音頻系統 (iOS 深度修復版) ---
 const AudioSys = {
     ctx: null,
     masterGain: null,
@@ -264,24 +265,40 @@ const AudioSys = {
     notes: [220, 261.63, 329.63, 196.00, 246.94, 293.66], 
     
     init: function() {
-        if (this.ctx) {
-            // 如果已存在，嘗試恢復 (iOS 關鍵)
-            if (this.ctx.state === 'suspended') {
-                this.ctx.resume();
-            }
-            return;
+        if (!this.ctx) {
+            const AudioContext = window.AudioContext || window.webkitAudioContext;
+            this.ctx = new AudioContext();
+            this.masterGain = this.ctx.createGain();
+            this.masterGain.gain.value = 0.4; 
+            this.masterGain.connect(this.ctx.destination);
         }
-        const AudioContext = window.AudioContext || window.webkitAudioContext;
-        this.ctx = new AudioContext();
-        this.masterGain = this.ctx.createGain();
-        this.masterGain.gain.value = 0.3; 
-        this.masterGain.connect(this.ctx.destination);
-        this.isPlaying = true;
         
-        // 播放一個靜音音符以解鎖 iOS 音頻引擎
-        this.playTone(440, 'sine', 0.1, 0.001);
-        
-        this.scheduleNextNote();
+        // 嘗試恢復 Context (iOS 必須)
+        if (this.ctx.state === 'suspended') {
+            this.ctx.resume().then(() => {
+                console.log("AudioContext resumed!");
+                this.updateStatus(true);
+            });
+        } else if (this.ctx.state === 'running') {
+            this.updateStatus(true);
+        }
+
+        // 播放一個靜音 Buffer 來解鎖
+        const buffer = this.ctx.createBuffer(1, 1, 22050); 
+        const source = this.ctx.createBufferSource(); 
+        source.buffer = buffer; 
+        source.connect(this.ctx.destination); 
+        source.start(0);
+
+        if (!this.isPlaying) {
+            this.isPlaying = true;
+            this.scheduleNextNote();
+        }
+    },
+
+    updateStatus: function(isOn) {
+        audioStatus.innerText = isOn ? '🔊' : '🔇';
+        audioStatus.style.opacity = isOn ? '1' : '0.5';
     },
 
     playTone: function(freq, type='sine', duration=0.5, vol=0.1) {
@@ -290,9 +307,11 @@ const AudioSys = {
         const gain = this.ctx.createGain();
         osc.type = type;
         osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+        
         gain.gain.setValueAtTime(0, this.ctx.currentTime);
         gain.gain.linearRampToValueAtTime(vol, this.ctx.currentTime + 0.05);
         gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + duration);
+
         osc.connect(gain);
         gain.connect(this.masterGain);
         osc.start();
@@ -301,7 +320,8 @@ const AudioSys = {
 
     playSFX: function(name) {
         if (!this.ctx) return;
-        if (this.ctx.state === 'suspended') this.ctx.resume(); // 二次保險
+        // 每次播放音效都嘗試恢復 Context，防止被系統自動掛起
+        if (this.ctx.state === 'suspended') this.ctx.resume();
 
         switch(name) {
             case 'step': this.playNoise(0.05, 0.05); break;
@@ -489,11 +509,8 @@ startBtn.onclick = () => {
     // 2. 隱藏開始畫面
     startScreen.style.display = 'none';
     
-    // 3. 檢測並強制顯示移動控制 (iOS 檢測)
-    const isTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
-    if (isTouch) {
-        mobileControls.classList.add('visible');
-    }
+    // 3. 強制顯示移動控制
+    mobileControls.classList.add('visible');
 };
 
 // 虛擬手把事件
@@ -505,7 +522,12 @@ function bindTouchControls() {
         if(!key) return;
 
         const handleDown = (e) => {
-            if(e.cancelable) e.preventDefault(); // 防止滾動
+            if(e.cancelable) e.preventDefault(); 
+            btn.classList.add('active-btn');
+            
+            // 嘗試在每次觸摸時恢復音頻
+            AudioSys.init();
+
             if (key === 'action') {
                 if (gameState.dialogue.active) {
                     nextDialogueLine();
@@ -519,6 +541,7 @@ function bindTouchControls() {
 
         const handleUp = (e) => {
             if(e.cancelable) e.preventDefault();
+            btn.classList.remove('active-btn');
             if (key !== 'action') {
                 gameState.input[key] = false;
             }
@@ -526,7 +549,6 @@ function bindTouchControls() {
 
         btn.addEventListener('touchstart', handleDown, {passive: false});
         btn.addEventListener('touchend', handleUp, {passive: false});
-        // 保留鼠標事件以便測試
         btn.addEventListener('mousedown', handleDown);
         btn.addEventListener('mouseup', handleUp);
     });
