@@ -16,6 +16,7 @@
             height: 100vh;
             color: #ccc;
             font-family: 'Courier New', Courier, monospace;
+            touch-action: none; /* 禁止瀏覽器默認縮放/滾動 */
         }
 
         #game-container {
@@ -64,6 +65,7 @@
             font-size: 14px;
             z-index: 15;
             text-shadow: 1px 1px 0 #000;
+            pointer-events: none;
         }
 
         /* 物品欄 */
@@ -74,6 +76,7 @@
             display: flex;
             gap: 10px;
             z-index: 15;
+            pointer-events: none;
         }
         .item {
             width: 20px;
@@ -135,6 +138,74 @@
             text-align: center;
             cursor: pointer;
         }
+
+        /* --- 虛擬手把 (Mobile Controls) --- */
+        #mobile-controls {
+            display: none; /* 默認隱藏，JS檢測到觸摸時顯示 */
+            position: absolute;
+            bottom: 20px;
+            width: 100%;
+            height: 120px;
+            z-index: 40;
+            pointer-events: none; /* 讓點擊穿透空白區域 */
+        }
+
+        /* 顯示條件：粗指針設備 (觸摸屏) */
+        @media (pointer: coarse) {
+            #mobile-controls { display: block; }
+        }
+
+        .dpad-container {
+            position: absolute;
+            bottom: 10px;
+            left: 20px;
+            width: 120px;
+            height: 120px;
+            pointer-events: auto;
+        }
+
+        .action-btn-container {
+            position: absolute;
+            bottom: 20px;
+            right: 30px;
+            width: 70px;
+            height: 70px;
+            pointer-events: auto;
+        }
+
+        .btn {
+            background: rgba(255, 255, 255, 0.15);
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            backdrop-filter: blur(2px);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: rgba(255, 255, 255, 0.7);
+            user-select: none;
+            touch-action: none;
+        }
+        
+        .btn:active { background: rgba(255, 255, 255, 0.4); }
+
+        /* D-Pad */
+        .dpad-cross {
+            position: relative;
+            width: 100%; height: 100%;
+        }
+        .dpad-up { position: absolute; top: 0; left: 33%; width: 33%; height: 33%; border-radius: 5px 5px 0 0; }
+        .dpad-down { position: absolute; bottom: 0; left: 33%; width: 33%; height: 33%; border-radius: 0 0 5px 5px; }
+        .dpad-left { position: absolute; top: 33%; left: 0; width: 33%; height: 33%; border-radius: 5px 0 0 5px; }
+        .dpad-right { position: absolute; top: 33%; right: 0; width: 33%; height: 33%; border-radius: 0 5px 5px 0; }
+        .dpad-center { position: absolute; top: 33%; left: 33%; width: 33%; height: 33%; background: rgba(255,255,255,0.1); border: none; }
+
+        /* Action Btn */
+        .btn-action {
+            width: 100%; height: 100%;
+            font-size: 24px;
+            font-weight: bold;
+        }
+
     </style>
 </head>
 <body>
@@ -151,6 +222,22 @@
         <div class="item" id="item-west" title="爸爸的糖果">🍬</div>
         <div class="item" id="item-east" title="妈妈的眼泪">💧</div>
         <div class="item" id="item-north" title="无法飞翔">🪶</div>
+    </div>
+
+    <!-- 虛擬手把 -->
+    <div id="mobile-controls">
+        <div class="dpad-container">
+            <div class="dpad-cross">
+                <div class="btn dpad-up" data-key="up">▲</div>
+                <div class="btn dpad-left" data-key="left">◀</div>
+                <div class="btn dpad-center"></div>
+                <div class="btn dpad-right" data-key="right">▶</div>
+                <div class="btn dpad-down" data-key="down">▼</div>
+            </div>
+        </div>
+        <div class="action-btn-container">
+            <div class="btn btn-action" data-key="action">A</div>
+        </div>
     </div>
 
     <div id="ui-layer">
@@ -182,16 +269,14 @@ const AudioSys = {
     masterGain: null,
     bgmOscs: [],
     isPlaying: false,
-    notes: [220, 261.63, 329.63, 196.00, 246.94, 293.66], // Am / G major bits
-    noteIndex: 0,
-    nextNoteTime: 0,
-
+    notes: [220, 261.63, 329.63, 196.00, 246.94, 293.66], 
+    
     init: function() {
         if (this.ctx) return;
         const AudioContext = window.AudioContext || window.webkitAudioContext;
         this.ctx = new AudioContext();
         this.masterGain = this.ctx.createGain();
-        this.masterGain.gain.value = 0.3; // 總音量
+        this.masterGain.gain.value = 0.3; 
         this.masterGain.connect(this.ctx.destination);
         this.isPlaying = true;
         this.scheduleNextNote();
@@ -217,28 +302,18 @@ const AudioSys = {
     playSFX: function(name) {
         if (!this.ctx) return;
         switch(name) {
-            case 'step':
-                // 模擬腳步聲 (Noise)
-                this.playNoise(0.05, 0.05);
-                break;
-            case 'text':
-                this.playTone(800 + Math.random()*200, 'square', 0.05, 0.02);
-                break;
-            case 'pickup':
+            case 'step': this.playNoise(0.05, 0.05); break;
+            case 'text': this.playTone(800 + Math.random()*200, 'square', 0.05, 0.02); break;
+            case 'pickup': 
                 this.playTone(1200, 'sine', 0.1, 0.1);
                 setTimeout(() => this.playTone(1800, 'sine', 0.3, 0.1), 100);
                 break;
-            case 'heartbeat':
-                this.playTone(60, 'triangle', 0.2, 0.2);
-                break;
-            case 'open':
-                this.playNoise(1.0, 0.1); // 轟隆聲
-                break;
+            case 'heartbeat': this.playTone(60, 'triangle', 0.2, 0.2); break;
+            case 'open': this.playNoise(1.0, 0.1); break;
             case 'warmth':
-                // 結局溫暖和弦
-                this.playTone(261.63, 'sine', 3, 0.05); // C4
-                this.playTone(329.63, 'sine', 3, 0.05); // E4
-                this.playTone(392.00, 'sine', 3, 0.05); // G4
+                this.playTone(261.63, 'sine', 3, 0.05); 
+                this.playTone(329.63, 'sine', 3, 0.05); 
+                this.playTone(392.00, 'sine', 3, 0.05); 
                 break;
         }
     },
@@ -247,9 +322,7 @@ const AudioSys = {
         const bufferSize = this.ctx.sampleRate * duration;
         const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
         const data = buffer.getChannelData(0);
-        for (let i = 0; i < bufferSize; i++) {
-            data[i] = Math.random() * 2 - 1;
-        }
+        for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
         const noise = this.ctx.createBufferSource();
         noise.buffer = buffer;
         const gain = this.ctx.createGain();
@@ -262,15 +335,9 @@ const AudioSys = {
 
     scheduleNextNote: function() {
         if (!this.isPlaying) return;
-        // 簡單的生成音樂：緩慢隨機播放音階中的音符，製造孤獨感
         const note = this.notes[Math.floor(Math.random() * this.notes.length)];
-        // 偶爾降低一個八度
         const octave = Math.random() > 0.7 ? 0.5 : 1;
-        
-        // 使用長音 Delay 效果模擬混響
         this.playTone(note * octave, 'sine', 4.0, 0.03); 
-        
-        // 間隔 2-4秒
         setTimeout(() => this.scheduleNextNote(), 2000 + Math.random() * 2000);
     }
 };
@@ -285,11 +352,7 @@ const gameState = {
     snow: [],
     input: { up: false, down: false, left: false, right: false },
     flags: {
-        hasWest: false,
-        hasEast: false,
-        hasNorth: false,
-        gateOpen: false,
-        endingPhase: 0 // 0:正常, 1:花園, 2:木屋, 3:謝幕
+        hasWest: false, hasEast: false, hasNorth: false, gateOpen: false, endingPhase: 0
     },
     anim: { t: 0, dragon: [], bird: {x:50, y:50, tx:50, ty:50} }
 };
@@ -315,12 +378,10 @@ const rooms = {
                   return ["它跳得好累。", "醫生叔叔，如果我乖乖吃藥，還能回家嗎？", "樹沒有回答我。它只是在流血。"];
               }
             },
-            
             { id: 'feather_center', type: 'item_pickup', x: 160, y: 170, w: 15, h: 15, color: '#fff',
               condition: (state) => state.flags.hasWest && state.flags.hasEast && !state.flags.hasNorth,
               logic: () => ["一根白色的羽毛，從樹梢落了下來。", "它很輕，身體好像也變輕了。", "如果我抓住它，是不是就能飛回爸爸媽媽身邊？", "...", "不行，我飛不動了。", "對不起，爸爸媽媽。", {action: 'getNorth'}]
             },
-            
             { id: 'moon', type: 'moon', x: 160, y: 80, 
               logic: () => ["那是手術室的燈嗎？", "還是月亮？", "媽媽說月亮上沒有疼痛。", "我想去那裡。"]
             },
@@ -417,17 +478,53 @@ const rooms = {
     }
 };
 
-// --- 初始化與音頻 ---
+// --- 初始化與事件綁定 ---
 
 startPrompt.onclick = () => {
     AudioSys.init();
     startPrompt.style.display = 'none';
 };
 
+// 虛擬手把事件
+function bindTouchControls() {
+    const btns = document.querySelectorAll('.btn');
+    
+    btns.forEach(btn => {
+        const key = btn.dataset.key;
+        if(!key) return;
+
+        const handleDown = (e) => {
+            e.preventDefault();
+            if (key === 'action') {
+                if (gameState.dialogue.active) {
+                    nextDialogueLine();
+                } else {
+                    checkInteraction();
+                }
+            } else {
+                gameState.input[key] = true;
+            }
+        };
+
+        const handleUp = (e) => {
+            e.preventDefault();
+            if (key !== 'action') {
+                gameState.input[key] = false;
+            }
+        };
+
+        btn.addEventListener('touchstart', handleDown);
+        btn.addEventListener('touchend', handleUp);
+        btn.addEventListener('mousedown', handleDown);
+        btn.addEventListener('mouseup', handleUp);
+    });
+}
+
 function init() {
     for(let i=0; i<50; i++) gameState.snow.push({x: Math.random() * GAME_WIDTH, y: Math.random() * GAME_HEIGHT, speed: Math.random() * 1 + 0.5});
     for(let i=0; i<20; i++) gameState.anim.dragon.push({x: -50 - i*15, y: 50});
     setupInput();
+    bindTouchControls(); // 綁定手把
     changeRoom('center');
     requestAnimationFrame(gameLoop);
 }
@@ -492,13 +589,12 @@ function handleAction(action) {
             }, 1000);
         }, 2000);
     } else if (action === 'finalStop') {
-        // 進入謝幕畫面 (Phase 3)
         gameState.flags.endingPhase = 3;
-        endingOverlay.style.opacity = 1; // 再次白屏
+        endingOverlay.style.opacity = 1; 
         setTimeout(() => {
-            uiLayer.style.display = 'none'; // 隱藏對話
+            uiLayer.style.display = 'none'; 
         }, 1000);
-        return false; // 不停止循環，改為渲染 Credits
+        return false; 
     }
     return false;
 }
@@ -507,7 +603,7 @@ function handleAction(action) {
 
 function update() {
     if (gameState.dialogue.active) return;
-    if (gameState.flags.endingPhase >= 2) return; // 結局階段禁止移動
+    if (gameState.flags.endingPhase >= 2) return; 
 
     const p = gameState.player;
     let dx = 0, dy = 0;
@@ -517,7 +613,8 @@ function update() {
     if (gameState.input.left) dx = -SPEED;
     if (gameState.input.right) dx = SPEED;
     
-    if (gameState.player.moving && dx === 0 && dy === 0) {
+    // 點擊移動 (如果沒有使用手把輸入)
+    if (dx === 0 && dy === 0 && gameState.player.moving) {
         const dist = Math.hypot(gameState.target.x - p.x, gameState.target.y - p.y);
         if (dist < SPEED) {
             p.x = gameState.target.x; p.y = gameState.target.y; gameState.player.moving = false;
@@ -527,9 +624,7 @@ function update() {
         }
     } else if (dx !== 0 || dy !== 0) gameState.player.moving = false;
 
-    // 播放腳步聲
     if ((dx !== 0 || dy !== 0) && Math.floor(Date.now() / 300) % 2 === 0) {
-        // 簡單頻率限制
         if (Math.random() > 0.8) AudioSys.playSFX('step');
     }
 
@@ -556,7 +651,12 @@ function update() {
                 } else if (e.type === 'tree' || e.type === 'solid') {
                     collided = true;
                 } else if (['bird','dragon','light','item_pickup','npc_grandma'].includes(e.type)) {
-                    interact(e); 
+                    // 如果是用手把移動，不自動觸發對話，除非是強觸發類型? 
+                    // 這裡改為: 碰到就不走了，需要按A鍵觸發。
+                    // 但是物品撿取應該自動觸發嗎? 為了手把體驗，物品撿取可以自動，對話要按A。
+                    if (e.type === 'item_pickup') {
+                        interact(e);
+                    }
                     collided = true;
                 }
             }
@@ -566,7 +666,7 @@ function update() {
         for (let e of currentRoom.entities) {
              if (e.type === 'npc_grandma') {
                  if (checkRectCollide(pRect.l, pRect.t, p.w, p.h, e.x-10, e.y-10, 20, 20)) {
-                     interact(e); collided = true;
+                     collided = true; // 靠近就停，按A說話
                  }
              } else if (e.type === 'warp' && gameState.flags.endingPhase === 0) {
                  if (checkRectCollide(pRect.l, pRect.t, p.w, p.h, e.x, e.y, e.w, e.h)) {
@@ -661,32 +761,22 @@ function drawCabinScene() {
 }
 
 function drawCredits() {
-    // 漸變淡出 overlay
     endingOverlay.style.transition = "opacity 2s";
-    endingOverlay.style.opacity = 0; // 黑屏後淡出 (其實是讓 canvas 顯示出來)
-    
-    // 但 canvas 現在要畫黑色
+    endingOverlay.style.opacity = 0; 
     ctx.fillStyle = '#000';
     ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
-    
     ctx.fillStyle = '#fff';
     ctx.font = '16px Courier New';
     ctx.textAlign = 'center';
-    
-    const t = gameState.anim.t; // 時間變量
-    
-    // 簡單的字幕動畫
+    const t = gameState.anim.t; 
     ctx.fillText("冬之脉", GAME_WIDTH/2, 80);
     ctx.font = '12px Courier New';
     ctx.fillStyle = '#888';
     ctx.fillText("Vein of Winter", GAME_WIDTH/2, 100);
-    
     ctx.fillStyle = '#ccc';
     ctx.fillText("感謝您的遊玩與陪伴", GAME_WIDTH/2, 140);
-    
-    // 重玩按鈕 (模擬)
     if (t % 50 > 25) {
-        ctx.fillText("[ F5 刷新重來 ]", GAME_WIDTH/2, 200);
+        ctx.fillText("[ 刷新頁面重來 ]", GAME_WIDTH/2, 200);
     }
 }
 
@@ -897,8 +987,12 @@ function setupInput() {
         const clickX = (e.clientX - rect.left) * scaleX;
         const clickY = (e.clientY - rect.top) * scaleY;
         
-        let clickedEntity = false;
-        if (gameState.flags.endingPhase === 0) {
+        // 點擊移動保留作為輔助（非手把操作時）
+        // 這裡做一個簡單判斷：如果點擊區域不在手把範圍內
+        const isInControls = (clickY > GAME_HEIGHT - 60); // 簡單估算手把高度
+        
+        if (gameState.flags.endingPhase === 0 && !isInControls) {
+            let clickedEntity = false;
             const currentRoom = rooms[gameState.room];
             for(let e of currentRoom.entities) {
                  if (e.condition && !e.condition(gameState)) continue;
@@ -910,12 +1004,12 @@ function setupInput() {
                      interact(e); clickedEntity = true; break;
                  }
             }
-        }
-
-        if(!clickedEntity && gameState.flags.endingPhase === 0) {
-            gameState.target.x = clickX - gameState.player.w/2;
-            gameState.target.y = clickY - gameState.player.h/2;
-            gameState.player.moving = true;
+            
+            if(!clickedEntity) {
+                gameState.target.x = clickX - gameState.player.w/2;
+                gameState.target.y = clickY - gameState.player.h/2;
+                gameState.player.moving = true;
+            }
         }
     });
 }
