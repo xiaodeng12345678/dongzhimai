@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>冬之脉 - Final Farewell</title>
     <style>
         body {
@@ -13,15 +13,10 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            /* 使用 dvh 適配移動端動態高度 */
-            height: 100dvh; 
+            height: 100vh;
             color: #ccc;
             font-family: 'Courier New', Courier, monospace;
-            touch-action: none;
-            -webkit-user-select: none;
-            user-select: none;
-            /* 禁用長按菜單 */
-            -webkit-touch-callout: none;
+            touch-action: none; /* 禁止瀏覽器默認縮放/滾動 */
         }
 
         #game-container {
@@ -37,28 +32,35 @@
         canvas {
             image-rendering: pixelated;
             box-shadow: 0 0 20px rgba(0, 0, 50, 0.5);
-            /* 保持 4:3 比例但適應屏幕 */
-            width: 100%;
-            max-width: 100vh; /* 橫屏限制 */
-            aspect-ratio: 4/3;
-            object-fit: contain;
+            max-width: 100%;
+            max-height: 100%;
             transition: filter 2s ease;
         }
 
-        /* 掃描線 */
+        /* 掃描線效果 */
         .scanlines {
             position: absolute;
-            top: 0; left: 0; width: 100%; height: 100%;
-            background: linear-gradient(to bottom, rgba(255,255,255,0), rgba(255,255,255,0) 50%, rgba(0,0,0,0.1) 50%, rgba(0,0,0,0.1));
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(
+                to bottom,
+                rgba(255,255,255,0),
+                rgba(255,255,255,0) 50%,
+                rgba(0,0,0,0.1) 50%,
+                rgba(0,0,0,0.1)
+            );
             background-size: 100% 4px;
             pointer-events: none;
             z-index: 10;
         }
 
-        /* UI */
+        /* 房間標題 */
         .room-title {
             position: absolute;
-            top: 20px; left: 20px;
+            top: 20px;
+            left: 20px;
             color: rgba(255, 255, 255, 0.6);
             font-size: 14px;
             z-index: 15;
@@ -66,37 +68,53 @@
             pointer-events: none;
         }
 
+        /* 物品欄 */
         #inventory {
             position: absolute;
-            top: 20px; right: 20px;
-            display: flex; gap: 10px;
+            top: 20px;
+            right: 20px;
+            display: flex;
+            gap: 10px;
             z-index: 15;
             pointer-events: none;
         }
         .item {
-            width: 20px; height: 20px;
+            width: 20px;
+            height: 20px;
             background: rgba(0,0,0,0.5);
             border: 1px solid #555;
-            display: flex; justify-content: center; align-items: center;
-            font-size: 12px; opacity: 0.3;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 12px;
+            opacity: 0.3;
         }
-        .item.collected { opacity: 1; border-color: #fff; box-shadow: 0 0 5px #fff; }
+        .item.collected {
+            opacity: 1;
+            border-color: #fff;
+            box-shadow: 0 0 5px #fff;
+        }
 
+        /* 對話框 */
         #ui-layer {
             position: absolute;
-            bottom: 30%; /* 上移避免被手把遮擋 */
-            left: 50%; transform: translateX(-50%);
-            width: 80%;
-            background: rgba(0,0,0,0.85);
-            border: 1px solid #fff;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 90%;
+            max-width: 600px;
+            background: #000;
+            border: 2px solid #fff;
             padding: 15px;
             font-size: 16px;
             line-height: 1.5;
             display: none;
             z-index: 20;
-            pointer-events: none;
+            user-select: none;
+            box-shadow: 0 0 10px #fff;
         }
 
+        /* 結局覆蓋層 */
         #ending-overlay {
             position: absolute;
             top: 0; left: 0; width: 100%; height: 100%;
@@ -107,109 +125,98 @@
             transition: opacity 3s;
         }
 
-        /* --- 修正版虛擬手把 --- */
+        /* 開始/音頻提示 */
+        #start-prompt {
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            color: #fff;
+            background: rgba(0,0,0,0.8);
+            padding: 20px;
+            border: 1px solid #fff;
+            z-index: 50;
+            text-align: center;
+            cursor: pointer;
+        }
+
+        /* --- 虛擬手把 (Mobile Controls) --- */
         #mobile-controls {
-            display: none; 
+            display: none; /* 默認隱藏，JS檢測到觸摸時顯示 */
             position: absolute;
-            bottom: 0; left: 0; width: 100%; height: 100%;
+            bottom: 20px;
+            width: 100%;
+            height: 120px;
             z-index: 40;
-            pointer-events: none;
+            pointer-events: none; /* 讓點擊穿透空白區域 */
         }
-        #mobile-controls.visible { display: block; }
 
-        .dpad-area {
+        /* 顯示條件：粗指針設備 (觸摸屏) */
+        @media (pointer: coarse) {
+            #mobile-controls { display: block; }
+        }
+
+        .dpad-container {
             position: absolute;
-            /* 增加底部距離，避開 Home Bar */
-            bottom: max(30px, env(safe-area-inset-bottom) + 20px);
+            bottom: 10px;
             left: 20px;
-            width: 150px; height: 150px; /* 加大觸摸區域 */
+            width: 120px;
+            height: 120px;
             pointer-events: auto;
         }
 
-        .action-area {
+        .action-btn-container {
             position: absolute;
-            /* 增加底部距離 */
-            bottom: max(50px, env(safe-area-inset-bottom) + 40px);
+            bottom: 20px;
             right: 30px;
-            width: 90px; height: 90px;
+            width: 70px;
+            height: 70px;
             pointer-events: auto;
         }
 
-        .dpad-btn, .btn-a {
-            background: rgba(255, 255, 255, 0.1);
-            border: 1px solid rgba(255, 255, 255, 0.3);
-            display: flex; justify-content: center; align-items: center;
-            color: rgba(255,255,255,0.6);
+        .btn {
+            background: rgba(255, 255, 255, 0.15);
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            backdrop-filter: blur(2px);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: rgba(255, 255, 255, 0.7);
+            user-select: none;
             touch-action: none;
-            position: absolute;
         }
         
-        /* 按下反饋 */
-        .active-btn { background: rgba(255, 255, 255, 0.4) !important; }
+        .btn:active { background: rgba(255, 255, 255, 0.4); }
 
-        .d-up { top: 0; left: 33%; width: 34%; height: 33%; border-radius: 8px 8px 0 0; }
-        .d-down { bottom: 0; left: 33%; width: 34%; height: 33%; border-radius: 0 0 8px 8px; }
-        .d-left { top: 33%; left: 0; width: 33%; height: 34%; border-radius: 8px 0 0 8px; }
-        .d-right { top: 33%; right: 0; width: 33%; height: 34%; border-radius: 0 8px 8px 0; }
-        
-        .btn-a {
+        /* D-Pad */
+        .dpad-cross {
+            position: relative;
             width: 100%; height: 100%;
-            border-radius: 50%;
+        }
+        .dpad-up { position: absolute; top: 0; left: 33%; width: 33%; height: 33%; border-radius: 5px 5px 0 0; }
+        .dpad-down { position: absolute; bottom: 0; left: 33%; width: 33%; height: 33%; border-radius: 0 0 5px 5px; }
+        .dpad-left { position: absolute; top: 33%; left: 0; width: 33%; height: 33%; border-radius: 5px 0 0 5px; }
+        .dpad-right { position: absolute; top: 33%; right: 0; width: 33%; height: 33%; border-radius: 0 5px 5px 0; }
+        .dpad-center { position: absolute; top: 33%; left: 33%; width: 33%; height: 33%; background: rgba(255,255,255,0.1); border: none; }
+
+        /* Action Btn */
+        .btn-action {
+            width: 100%; height: 100%;
             font-size: 24px;
             font-weight: bold;
         }
 
-        /* 開始畫面 */
-        #start-screen {
-            position: absolute;
-            top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.95);
-            z-index: 100;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            color: #fff;
-            padding: 20px;
-            text-align: center;
-        }
-        #start-btn {
-            margin-top: 30px;
-            padding: 20px 40px;
-            border: 2px solid #fff;
-            background: rgba(255,255,255,0.1);
-            color: #fff;
-            font-size: 20px;
-            border-radius: 10px;
-        }
-        
-        /* 聲音狀態圖標 */
-        #audio-status {
-            position: absolute;
-            top: 10px; right: 10px;
-            z-index: 60;
-            font-size: 20px;
-            opacity: 0.5;
-        }
     </style>
 </head>
 <body>
 
 <div id="game-container">
-    <div id="audio-status">🔇</div>
     <canvas id="gameCanvas" width="320" height="240"></canvas>
     <div class="scanlines"></div>
     <div class="room-title" id="room-name"></div>
     <div id="ending-overlay"></div>
     
-    <!-- 開始畫面 -->
-    <div id="start-screen">
-        <h2 style="margin-bottom:10px;">冬之脉 - Final Farewell</h2>
-        <p style="font-size:14px; color:#aaa; max-width: 300px;">
-            請確保關閉手機的「靜音模式」(側邊開關)，否則可能無法聽到聲音。
-        </p>
-        <button id="start-btn">開始旅程</button>
-    </div>
+    <div id="start-prompt">點擊畫面開始 (開啟聲音)</div>
 
     <div id="inventory">
         <div class="item" id="item-west" title="爸爸的糖果">🍬</div>
@@ -219,14 +226,17 @@
 
     <!-- 虛擬手把 -->
     <div id="mobile-controls">
-        <div class="dpad-area">
-            <div class="dpad-btn d-up" data-key="up">▲</div>
-            <div class="dpad-btn d-left" data-key="left">◀</div>
-            <div class="dpad-btn d-right" data-key="right">▶</div>
-            <div class="dpad-btn d-down" data-key="down">▼</div>
+        <div class="dpad-container">
+            <div class="dpad-cross">
+                <div class="btn dpad-up" data-key="up">▲</div>
+                <div class="btn dpad-left" data-key="left">◀</div>
+                <div class="btn dpad-center"></div>
+                <div class="btn dpad-right" data-key="right">▶</div>
+                <div class="btn dpad-down" data-key="down">▼</div>
+            </div>
         </div>
-        <div class="action-area">
-            <div class="btn-a" data-key="action">A</div>
+        <div class="action-btn-container">
+            <div class="btn btn-action" data-key="action">A</div>
         </div>
     </div>
 
@@ -242,11 +252,7 @@ const uiLayer = document.getElementById('ui-layer');
 const uiText = document.getElementById('dialogue-text');
 const roomNameEl = document.getElementById('room-name');
 const endingOverlay = document.getElementById('ending-overlay');
-const startScreen = document.getElementById('start-screen');
-const startBtn = document.getElementById('start-btn');
-const mobileControls = document.getElementById('mobile-controls');
-const audioStatus = document.getElementById('audio-status');
-
+const startPrompt = document.getElementById('start-prompt');
 const invItems = {
     west: document.getElementById('item-west'),
     east: document.getElementById('item-east'),
@@ -257,48 +263,23 @@ const GAME_WIDTH = 320;
 const GAME_HEIGHT = 240;
 const SPEED = 2;
 
-// --- 音頻系統 (iOS 深度修復版) ---
+// --- 音頻系統 ---
 const AudioSys = {
     ctx: null,
     masterGain: null,
+    bgmOscs: [],
     isPlaying: false,
     notes: [220, 261.63, 329.63, 196.00, 246.94, 293.66], 
     
     init: function() {
-        if (!this.ctx) {
-            const AudioContext = window.AudioContext || window.webkitAudioContext;
-            this.ctx = new AudioContext();
-            this.masterGain = this.ctx.createGain();
-            this.masterGain.gain.value = 0.4; 
-            this.masterGain.connect(this.ctx.destination);
-        }
-        
-        // 嘗試恢復 Context (iOS 必須)
-        if (this.ctx.state === 'suspended') {
-            this.ctx.resume().then(() => {
-                console.log("AudioContext resumed!");
-                this.updateStatus(true);
-            });
-        } else if (this.ctx.state === 'running') {
-            this.updateStatus(true);
-        }
-
-        // 播放一個靜音 Buffer 來解鎖
-        const buffer = this.ctx.createBuffer(1, 1, 22050); 
-        const source = this.ctx.createBufferSource(); 
-        source.buffer = buffer; 
-        source.connect(this.ctx.destination); 
-        source.start(0);
-
-        if (!this.isPlaying) {
-            this.isPlaying = true;
-            this.scheduleNextNote();
-        }
-    },
-
-    updateStatus: function(isOn) {
-        audioStatus.innerText = isOn ? '🔊' : '🔇';
-        audioStatus.style.opacity = isOn ? '1' : '0.5';
+        if (this.ctx) return;
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        this.ctx = new AudioContext();
+        this.masterGain = this.ctx.createGain();
+        this.masterGain.gain.value = 0.3; 
+        this.masterGain.connect(this.ctx.destination);
+        this.isPlaying = true;
+        this.scheduleNextNote();
     },
 
     playTone: function(freq, type='sine', duration=0.5, vol=0.1) {
@@ -320,9 +301,6 @@ const AudioSys = {
 
     playSFX: function(name) {
         if (!this.ctx) return;
-        // 每次播放音效都嘗試恢復 Context，防止被系統自動掛起
-        if (this.ctx.state === 'suspended') this.ctx.resume();
-
         switch(name) {
             case 'step': this.playNoise(0.05, 0.05); break;
             case 'text': this.playTone(800 + Math.random()*200, 'square', 0.05, 0.02); break;
@@ -502,32 +480,21 @@ const rooms = {
 
 // --- 初始化與事件綁定 ---
 
-startBtn.onclick = () => {
-    // 1. 初始化音頻 (必須在點擊事件中)
+startPrompt.onclick = () => {
     AudioSys.init();
-    
-    // 2. 隱藏開始畫面
-    startScreen.style.display = 'none';
-    
-    // 3. 強制顯示移動控制
-    mobileControls.classList.add('visible');
+    startPrompt.style.display = 'none';
 };
 
 // 虛擬手把事件
 function bindTouchControls() {
-    const btns = document.querySelectorAll('.dpad-btn, .btn-a');
+    const btns = document.querySelectorAll('.btn');
     
     btns.forEach(btn => {
         const key = btn.dataset.key;
         if(!key) return;
 
         const handleDown = (e) => {
-            if(e.cancelable) e.preventDefault(); 
-            btn.classList.add('active-btn');
-            
-            // 嘗試在每次觸摸時恢復音頻
-            AudioSys.init();
-
+            e.preventDefault();
             if (key === 'action') {
                 if (gameState.dialogue.active) {
                     nextDialogueLine();
@@ -540,15 +507,14 @@ function bindTouchControls() {
         };
 
         const handleUp = (e) => {
-            if(e.cancelable) e.preventDefault();
-            btn.classList.remove('active-btn');
+            e.preventDefault();
             if (key !== 'action') {
                 gameState.input[key] = false;
             }
         };
 
-        btn.addEventListener('touchstart', handleDown, {passive: false});
-        btn.addEventListener('touchend', handleUp, {passive: false});
+        btn.addEventListener('touchstart', handleDown);
+        btn.addEventListener('touchend', handleUp);
         btn.addEventListener('mousedown', handleDown);
         btn.addEventListener('mouseup', handleUp);
     });
@@ -558,7 +524,7 @@ function init() {
     for(let i=0; i<50; i++) gameState.snow.push({x: Math.random() * GAME_WIDTH, y: Math.random() * GAME_HEIGHT, speed: Math.random() * 1 + 0.5});
     for(let i=0; i<20; i++) gameState.anim.dragon.push({x: -50 - i*15, y: 50});
     setupInput();
-    bindTouchControls(); 
+    bindTouchControls(); // 綁定手把
     changeRoom('center');
     requestAnimationFrame(gameLoop);
 }
@@ -647,7 +613,7 @@ function update() {
     if (gameState.input.left) dx = -SPEED;
     if (gameState.input.right) dx = SPEED;
     
-    // 點擊移動 (備用)
+    // 點擊移動 (如果沒有使用手把輸入)
     if (dx === 0 && dy === 0 && gameState.player.moving) {
         const dist = Math.hypot(gameState.target.x - p.x, gameState.target.y - p.y);
         if (dist < SPEED) {
@@ -685,8 +651,11 @@ function update() {
                 } else if (e.type === 'tree' || e.type === 'solid') {
                     collided = true;
                 } else if (['bird','dragon','light','item_pickup','npc_grandma'].includes(e.type)) {
+                    // 如果是用手把移動，不自動觸發對話，除非是強觸發類型? 
+                    // 這裡改為: 碰到就不走了，需要按A鍵觸發。
+                    // 但是物品撿取應該自動觸發嗎? 為了手把體驗，物品撿取可以自動，對話要按A。
                     if (e.type === 'item_pickup') {
-                        interact(e); // 自動拾取
+                        interact(e);
                     }
                     collided = true;
                 }
@@ -697,7 +666,7 @@ function update() {
         for (let e of currentRoom.entities) {
              if (e.type === 'npc_grandma') {
                  if (checkRectCollide(pRect.l, pRect.t, p.w, p.h, e.x-10, e.y-10, 20, 20)) {
-                     collided = true; // 需按鍵對話
+                     collided = true; // 靠近就停，按A說話
                  }
              } else if (e.type === 'warp' && gameState.flags.endingPhase === 0) {
                  if (checkRectCollide(pRect.l, pRect.t, p.w, p.h, e.x, e.y, e.w, e.h)) {
