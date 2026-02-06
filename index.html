@@ -33,20 +33,25 @@
             background: #111;
         }
 
-        /* 游戏画面容器 - 保持 4:3 */
+        /* 游戏画面容器 */
         #canvas-container {
             position: relative;
             aspect-ratio: 4/3;
-            height: 100%;
+            /* 电脑端：限制最大高度，找回精致感 */
+            height: 85vh; 
             max-width: 100%;
-            /* 竖屏适配 */
-            @media (max-aspect-ratio: 4/3) {
-                width: 100%;
-                height: auto;
-            }
             background: #000;
             box-shadow: 0 0 50px rgba(0,0,0,0.8);
             z-index: 10;
+        }
+
+        /* 手机端适配：强制填满宽度或高度，但保持比例 */
+        @media (max-width: 800px) {
+            #canvas-container {
+                width: 100%;
+                height: auto;
+                max-height: 100%;
+            }
         }
 
         canvas {
@@ -122,10 +127,17 @@
             display: none;
             position: absolute;
             top: 0; left: 0; width: 100%; height: 100%;
-            z-index: 50; /* 确保在最上层 */
+            z-index: 100; /* 关键修复：确保在 Canvas 之上 */
             pointer-events: none;
         }
-        #mobile-controls.visible { display: flex; justify-content: space-between; align-items: flex-end; }
+        
+        /* 强制在触摸设备上显示 */
+        @media (pointer: coarse) {
+            #mobile-controls { display: flex !important; justify-content: space-between; align-items: flex-end; }
+        }
+        
+        /* 也可以通过 JS class 强制显示 */
+        #mobile-controls.visible { display: flex !important; justify-content: space-between; align-items: flex-end; }
 
         .control-side { width: 160px; height: 100%; pointer-events: auto; position: relative; display: flex; align-items: center; justify-content: center; }
         .dpad-cross { position: relative; width: 140px; height: 140px; margin-bottom: 40px; margin-left: 20px; }
@@ -248,7 +260,9 @@ const TEXT = {
             wheelchair_pickup: ["一個輪椅模型。", "後來，它成了我的雙腿。", "輪子轉動的聲音，吱呀，吱呀。", "我再也不能奔跑了。", {action: 'getWheelchair'}],
             hourglass_pickup: ["一個碎裂的沙漏。", "沙子已經漏光了。", "時間...就是這樣一點點流逝的。", "我知道我的時間不多了。", {action: 'getHourglass'}],
             candy_pickup: ["爸爸偷偷塞給我的。", "「別告訴媽媽」，他笑著說。", "可是爸爸，你的眼睛為什麼是紅的？", "我吃不下了，但我會把它帶走。", {action: 'getCandy'}],
+            candy_done: ["糖果融化了。", "爸爸，我不再餓了。"],
             tear_pickup: ["地上有個發光的東西。", "那不是玻璃。", "那是媽媽那一刻落在我手背上的眼淚。", "燙燙的，卻又那麼涼。", "對不起，媽媽，別為我哭了。", {action: 'getTear'}],
+            tear_done: ["點滴架。", "一滴，兩滴...時間過得好慢。", "我想回家睡覺。"],
             watch_pickup: ["一個停止的懷錶。", "指針停在了宣告死亡的那一刻。", "我不想時間停止。", "但我沒有力氣了。", {action: 'getWatch'}],
             feather_pickup: ["一根白色的羽毛。", "它很輕，身體好像也變輕了。", "如果我抓住它，是不是就能飛回爸爸媽媽身邊？", "...", "不行，我飛不動了。", "對不起，爸爸媽媽。", {action: 'getFeather'}],
             grandma: ["來，孩子。", "不用再打針了，不用再吃苦藥了。", "這裡有好多你喜歡的糖。", "我們走吧。", {action: 'startEnding'}],
@@ -266,13 +280,19 @@ const TEXT = {
             intro_transform: ["(A heartbeat sounds)", "The tree... is alive?", "No, I am alive.", "This is my heart."],
             intro_heart_phase2: ["It beats heavily.", "My memories are hidden in the rooms.", "I must face them."],
             intro_ready_feather: ["I remember everything.", "The pain, the despair, and the love.", "The line is flat.", "The wall is gone.", {action: 'openGate'}],
+            intro_done: ["The heartbeat is gone.", "A path to the south has opened.", "Should I go?"],
             drawing_pickup: ["A sketchbook.", "A drawing of us at the park.", "Before I got sick.", {action: 'getDrawing'}],
             wheelchair_pickup: ["A wheelchair model.", "My legs stopped working.", "Squeak, squeak...", {action: 'getWheelchair'}],
             hourglass_pickup: ["A broken hourglass.", "The sand is gone.", "My time ran out.", {action: 'getHourglass'}],
             candy_pickup: ["Dad's secret candy.", "His eyes were red when he smiled.", "I'll take it with me.", {action: 'getCandy'}],
+            candy_done: ["The candy melted.", "Dad, I'm not hungry anymore."],
             tear_pickup: ["Mom's tear.", "It burned my hand.", "Don't cry, Mom.", {action: 'getTear'}],
+            tear_done: ["IV drips.", "Drop, drop... time moves so slow.", "I want to sleep in my own bed."],
             watch_pickup: ["A stopped watch.", "Time stopped for me.", "I have no strength left.", {action: 'getWatch'}],
             feather_pickup: ["A white feather.", "So light.", "I can't fly back.", "Sorry, Mom and Dad.", {action: 'getFeather'}],
+            bird_alive: ["It's resting on the branch.", "So quiet."],
+            bird_gone: ["It flew away.", "I want to fly away too."],
+            spike_tree: ["Beep——————", "That sound hurts.", "Mom, Dad, don't listen.", "Cover your ears.", "(Nothing left here, I should go back)"],
             grandma: ["Come, child.", "No more pain.", "Let's go.", {action: 'startEnding'}],
             ending_garden: ["'But I miss them...'", "Grandma smiled.", "'Love never breaks.'", {action: 'triggerCabinScene'}],
             ending_cabin: ["They dreamed of her running.", "Smiling, pain-free.", "They woke up crying, but warm.", "Goodnight, love.", {action: 'finalStop'}],
@@ -288,14 +308,20 @@ const TEXT = {
             intro_transform: ["(鼓動が響く)", "木が...生きてる？", "ううん、ここは私の心臓だ。"],
             intro_heart_phase2: ["鼓動が重い。", "見たくないものが隠れてる。", "でも行かなくちゃ。"],
             intro_ready_feather: ["全部思い出した。", "痛みも、絶望も、愛も。", "もう戻れない。", "壁が消えた。", {action: 'openGate'}],
+            intro_done: ["鼓動が消えた。", "南への道が開いている。", "行こうかな。"],
             drawing_pickup: ["落書き帳。", "元気だった頃の私たち。", "アイスが甘かった。", {action: 'getDrawing'}],
             wheelchair_pickup: ["車椅子の模型。", "いつからか、これが私の足だった。", "キー、キー...", {action: 'getWheelchair'}],
             hourglass_pickup: ["壊れた砂時計。", "砂はもうない。", "時間が足りなかった。", {action: 'getHourglass'}],
             candy_pickup: ["パパの飴。", "パパ、どうして目が赤いの？", "持っていくね。", {action: 'getCandy'}],
+            candy_done: ["飴は溶けてしまった。", "パパ、もうお腹すいてないよ。"],
             tear_pickup: ["ママの涙。", "熱くて、冷たい。", "泣かないで、ママ。", {action: 'getTear'}],
+            tear_done: ["点滴。", "ポタ、ポタ...時間が遅いよ。", "自分のお布団で眠りたい。"],
             watch_pickup: ["止まった時計。", "時が止まった。", "もう力が入らない。", {action: 'getWatch'}],
             feather_pickup: ["白い羽。", "軽い。", "もう飛べないよ。", "ごめんね。", {action: 'getFeather'}],
-            grandma: ["おいで。", "もう痛くないよ。", "行こう。", {action: 'startEnding'}],
+            bird_alive: ["枝に止まっている。", "静かだ。"],
+            bird_gone: ["飛んでいった。", "私も行きたい。"],
+            spike_tree: ["ピーーーーー", "耳が痛い。", "パパ、ママ、聞かないで。", "耳を塞いで。", "（もうここには何もないみたい）"],
+            grandma: ["おいで。", "もう注射も、苦い薬もないよ。", "好きな飴もたくさんあるから。", "さあ、行こう。", {action: 'startEnding'}],
             ending_garden: ["「でもパパとママが...」", "お婆ちゃんは笑った。", "「愛はずっと繋がってる。」", {action: 'triggerCabinScene'}],
             ending_cabin: ["その夜、二人は夢を見た。", "花畑を走る娘を。", "「もう痛くないよ！」", "二人は泣いた。でも心は温かかった。", "おやすみ、私の宝物。", {action: 'finalStop'}],
             credits: ["冬の脈 - Vein of Winter", "遊んでくれてありがとう", "[ 更新して再開 ]"],
@@ -419,104 +445,7 @@ function updateRoomName() {
     document.getElementById('room-name').innerText = name;
 }
 
-// --- Rooms Definition ---
-const rooms = {
-    'center': {
-        nameKey: 'center', bg: '#050505',
-        entities: [
-            { id: 'crowd_bg', type: 'stickmen', y: 140, alpha: 0.5 },
-            { id: 'tree_main', type: 'tree', x: 160, y: 140, w: 20, h: 20, color: '#aa0000', variant: 'tree', 
-              logic: (s) => {
-                  if (s.flags.gateOpen) return t('dialogue', 'intro_gate_open');
-                  if (!s.flags.transformed) return t('dialogue', 'intro_start');
-                  if (s.flags.hasCandy && s.flags.hasTear && s.flags.hasWatch) return t('dialogue', 'intro_ready_feather');
-                  AudioSys.playSFX('heartbeat'); return t('dialogue', 'intro_heart_phase2');
-              }
-            },
-            { id: 'feather_center', type: 'item_pickup', x: 160, y: 170, w: 15, h: 15, color: '#fff',
-              condition: (s) => s.flags.hasCandy && s.flags.hasTear && s.flags.hasWatch && !s.flags.gateOpen,
-              logic: () => t('dialogue', 'feather_pickup')
-            },
-            { id: 'moon', type: 'moon', x: 160, y: 80 },
-            { id: 'path_w', type: 'warp', x: 0, y: 100, w: 10, h: 40, target: 'corridor_w', targetX: 280, targetY: 120 },
-            { id: 'path_e', type: 'warp', x: 310, y: 100, w: 10, h: 40, target: 'corridor_e', targetX: 40, targetY: 120 },
-            { id: 'path_n', type: 'warp', x: 130, y: 0, w: 60, h: 10, target: 'corridor_n', targetX: 160, targetY: 220 },
-            { id: 'path_s', type: 'warp', x: 130, y: 230, w: 60, h: 10, target: 'south', targetX: 160, targetY: 20, condition: (s) => s.flags.gateOpen },
-            { id: 'crowd_fg', type: 'stickmen', y: 220, alpha: 0.8 },
-            { id: 'wall_text', type: 'solid', x: 20, y: 220, w: 280, h: 20, condition: (s) => !s.flags.gateOpen }
-        ]
-    },
-    'corridor_w': {
-        nameKey: 'west', bg: '#110511',
-        entities: [
-            { id: 'path_back', type: 'warp', x: 310, y: 100, w: 10, h: 40, target: 'center', targetX: 20, targetY: 120 },
-            { id: 'path_room', type: 'warp', x: 0, y: 100, w: 10, h: 40, target: 'west_room', targetX: 280, targetY: 120 },
-            { id: 'drawing', type: 'item_pickup', x: 160, y: 140, w: 20, h: 14, color: '#f0f', 
-              condition: (s) => !s.flags.hasDrawing, logic: () => t('dialogue', 'drawing_pickup') },
-            { id: 'decor', type: 'particles', color: '#ff69b4' }
-        ]
-    },
-    'corridor_e': {
-        nameKey: 'east', bg: '#051105',
-        entities: [
-            { id: 'path_back', type: 'warp', x: 0, y: 100, w: 10, h: 40, target: 'center', targetX: 280, targetY: 120 },
-            { id: 'path_room', type: 'warp', x: 310, y: 100, w: 10, h: 40, target: 'east_room', targetX: 40, targetY: 120 },
-            { id: 'wheelchair', type: 'item_pickup', x: 160, y: 140, w: 20, h: 20, color: '#aaa',
-              condition: (s) => !s.flags.hasWheelchair, logic: () => t('dialogue', 'wheelchair_pickup') },
-            { id: 'decor', type: 'particles', color: '#2e8b57' }
-        ]
-    },
-    'corridor_n': {
-        nameKey: 'north', bg: '#111100',
-        entities: [
-            { id: 'path_back', type: 'warp', x: 130, y: 230, w: 60, h: 10, target: 'center', targetX: 160, targetY: 20 },
-            { id: 'path_room', type: 'warp', x: 130, y: 0, w: 60, h: 10, target: 'north_room', targetX: 160, targetY: 220 },
-            { id: 'hourglass', type: 'item_pickup', x: 80, y: 140, w: 15, h: 15, color: '#da0',
-              condition: (s) => !s.flags.hasHourglass, logic: () => t('dialogue', 'hourglass_pickup') },
-            { id: 'decor', type: 'particles', color: '#daa520' }
-        ]
-    },
-    'west_room': {
-        nameKey: 'room_w', bg: '#1a051a',
-        entities: [
-            { id: 'tree_pink', type: 'tree', x: 100, y: 60, color: '#ff69b4', variant: 'melt',
-              logic: (s) => s.flags.hasCandy ? t('dialogue', 'candy_done') : null },
-            { id: 'item_candy', type: 'item_pickup', x: 100, y: 140, w: 15, h: 15, color: '#ff69b4',
-              condition: (s) => s.flags.transformed && !s.flags.hasCandy, logic: () => t('dialogue', 'candy_pickup') },
-            { id: 'dragon', type: 'dragon' },
-            { id: 'path_back', type: 'warp', x: 310, y: 100, w: 10, h: 40, target: 'corridor_w', targetX: 20, targetY: 120 }
-        ]
-    },
-    'east_room': {
-        nameKey: 'room_e', bg: '#051a05',
-        entities: [
-            { id: 'tree_green', type: 'tree', x: 200, y: 60, color: '#2e8b57', variant: 'drip',
-              logic: () => t('dialogue', 'tear_done') },
-            { id: 'item_tear', type: 'item_pickup', x: 160, y: 150, w: 15, h: 15, color: '#aaf',
-              condition: (s) => s.flags.transformed && !s.flags.hasTear, logic: () => t('dialogue', 'tear_pickup') },
-            { id: 'path_back', type: 'warp', x: 0, y: 100, w: 10, h: 40, target: 'corridor_e', targetX: 280, targetY: 120 }
-        ]
-    },
-    'north_room': {
-        nameKey: 'room_n', bg: '#1a1a00',
-        entities: [
-            { id: 'bird', type: 'bird', logic: (s) => t('dialogue', 'bird_alive') },
-            { id: 'tree_yellow', type: 'tree', x: 160, y: 50, color: '#daa520', variant: 'spike',
-              logic: () => t('dialogue', 'spike_tree') },
-            { id: 'item_watch', type: 'item_pickup', x: 160, y: 160, w: 15, h: 15, color: '#da0',
-              condition: (s) => s.flags.transformed && !s.flags.hasWatch, logic: () => t('dialogue', 'watch_pickup') },
-            { id: 'path_back', type: 'warp', x: 130, y: 230, w: 60, h: 10, target: 'corridor_n', targetX: 160, targetY: 20 }
-        ]
-    },
-    'south': {
-        nameKey: 'south', bg: '#111',
-        entities: [
-            { id: 'grandma', type: 'npc_grandma', x: 160, y: 100, logic: () => t('dialogue', 'grandma') },
-            { id: 'path_back', type: 'warp', x: 130, y: 0, w: 60, h: 10, target: 'center', targetX: 160, targetY: 200, condition: (s) => s.flags.endingPhase === 0 }
-        ]
-    }
-};
-
+// --- Control Binding ---
 function bindControls() {
     const btns = document.querySelectorAll('.touch-btn');
     btns.forEach(btn => {
@@ -656,13 +585,13 @@ function triggerTransformation() {
 
 function handleAction(act) {
     // Phase 1
-    if(act === 'getDrawing') { gameState.flags.hasDrawing = true; invItems.drawing.classList.add('collected'); AudioSys.playSFX('pickup'); }
-    else if(act === 'getWheelchair') { gameState.flags.hasWheelchair = true; invItems.wheelchair.classList.add('collected'); AudioSys.playSFX('pickup'); }
-    else if(act === 'getHourglass') { gameState.flags.hasHourglass = true; invItems.hourglass.classList.add('collected'); AudioSys.playSFX('pickup'); }
+    if(act === 'getDrawing') { gameState.flags.hasDrawing = true; gameState.flags.itemsCount++; invItems.drawing.classList.add('collected'); AudioSys.playSFX('pickup'); }
+    else if(act === 'getWheelchair') { gameState.flags.hasWheelchair = true; gameState.flags.itemsCount++; invItems.wheelchair.classList.add('collected'); AudioSys.playSFX('pickup'); }
+    else if(act === 'getHourglass') { gameState.flags.hasHourglass = true; gameState.flags.itemsCount++; invItems.hourglass.classList.add('collected'); AudioSys.playSFX('pickup'); }
     // Phase 2
-    else if(act === 'getCandy') { gameState.flags.hasCandy = true; invItems.candy.classList.add('collected'); AudioSys.playSFX('pickup'); }
-    else if(act === 'getTear') { gameState.flags.hasTear = true; invItems.tear.classList.add('collected'); AudioSys.playSFX('pickup'); }
-    else if(act === 'getWatch') { gameState.flags.hasWatch = true; invItems.watch.classList.add('collected'); AudioSys.playSFX('pickup'); }
+    else if(act === 'getCandy') { gameState.flags.hasCandy = true; gameState.flags.itemsCount++; invItems.candy.classList.add('collected'); AudioSys.playSFX('pickup'); }
+    else if(act === 'getTear') { gameState.flags.hasTear = true; gameState.flags.itemsCount++; invItems.tear.classList.add('collected'); AudioSys.playSFX('pickup'); }
+    else if(act === 'getWatch') { gameState.flags.hasWatch = true; gameState.flags.itemsCount++; invItems.watch.classList.add('collected'); AudioSys.playSFX('pickup'); }
     // Ending
     else if(act === 'getFeather') { gameState.flags.gateOpen = true; AudioSys.playSFX('open'); startDialogue(t('dialogue', 'intro_ready_feather')); }
     else if(act === 'openGate') { /* Dialogue finished gate logic already set */ }
@@ -743,11 +672,11 @@ function update() {
             if(['stickmen','particles'].includes(ent.type)) return;
             let ex=ent.x, ey=ent.y, ew=ent.w||20, eh=ent.h||20;
             if(ent.type==='tree') { ex=ent.x-ew/2; ey=ent.y-eh; }
-            if(ent.type==='prop_extra' || ent.type==='item_pickup') { ex=ent.x-10; ey=ent.y-10; }
+            if(ent.type==='npc_grandma' || ent.type==='item_pickup' || ent.type==='prop_extra') { ex=ent.x-10; ey=ent.y-10; }
             
             if(checkRectCollide(nextX, nextY, p.w, p.h, ex, ey, ew, eh)) {
                 if(ent.type==='warp') { startRoomTransition(ent.target, ent.targetX, ent.targetY); return; }
-                else if(ent.type==='item_pickup') { interact(ent); collided=true; }
+                else if(ent.type==='item_pickup' || ent.type==='prop_extra') { interact(ent); collided=true; }
                 else collided=true;
             }
         });
