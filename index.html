@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>冬之脉 - Final Farewell</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Vein of Winter</title>
     <style>
         body {
             background-color: #050505;
@@ -14,101 +14,102 @@
             align-items: center;
             justify-content: center;
             height: 100vh;
+            height: 100dvh;
             color: #ccc;
             font-family: 'Courier New', Courier, monospace;
             touch-action: none;
             -webkit-user-select: none;
             user-select: none;
+            -webkit-touch-callout: none;
         }
 
-        #game-container {
+        #game-wrapper {
             position: relative;
-            /* 电脑端核心逻辑：保持比例，不要铺满 */
-            width: auto;
-            height: auto;
-            max-width: 100%;
-            max-height: 100%;
-            aspect-ratio: 4/3;
+            width: 100%;
+            height: 100%;
             display: flex;
             justify-content: center;
             align-items: center;
+            background: #111;
+        }
+
+        /* 游戏画面容器 - 保持 4:3 */
+        #canvas-container {
+            position: relative;
+            aspect-ratio: 4/3;
+            height: 100%;
+            max-width: 100%;
+            /* 如果屏幕太窄(竖屏)，优先宽度适配 */
+            @media (max-aspect-ratio: 4/3) {
+                width: 100%;
+                height: auto;
+            }
             background: #000;
-            box-shadow: 0 0 30px rgba(0, 0, 0, 0.8);
+            box-shadow: 0 0 50px rgba(0,0,0,0.8);
+            z-index: 10;
         }
 
         canvas {
-            image-rendering: pixelated; /* 关键：保持像素清晰 */
+            image-rendering: pixelated;
             width: 100%;
             height: 100%;
             display: block;
-            box-shadow: 0 0 20px rgba(0, 0, 50, 0.2);
             transition: filter 2s ease;
         }
 
-        /* 手机端适配：强制填满屏幕 */
-        @media (max-width: 600px) {
-            #game-container {
-                width: 100%;
-                height: 100%;
-                aspect-ratio: unset;
-            }
-            canvas {
-                object-fit: contain; /* 保持比例，可能有黑边，但画面不拉伸 */
-            }
-        }
-
-        /* 扫描线效果 */
         .scanlines {
             position: absolute;
             top: 0; left: 0; width: 100%; height: 100%;
             background: linear-gradient(to bottom, rgba(255,255,255,0), rgba(255,255,255,0) 50%, rgba(0,0,0,0.1) 50%, rgba(0,0,0,0.1));
             background-size: 100% 4px;
             pointer-events: none;
-            z-index: 10;
+            z-index: 11;
         }
 
-        /* UI */
+        /* UI Overlay inside canvas area */
+        .ui-overlay {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none;
+            z-index: 20;
+        }
+
         .room-title {
             position: absolute;
-            top: 20px; left: 20px;
+            top: 15px; left: 15px;
             color: rgba(255, 255, 255, 0.6);
             font-size: 14px;
-            z-index: 15;
             text-shadow: 1px 1px 0 #000;
-            pointer-events: none;
         }
 
         #inventory {
             position: absolute;
-            top: 20px; right: 20px;
-            display: flex; gap: 10px;
-            z-index: 15;
-            pointer-events: none;
+            top: 15px; right: 15px;
+            display: flex; gap: 8px;
         }
         .item {
-            width: 20px; height: 20px;
-            background: rgba(0,0,0,0.5);
+            width: 24px; height: 24px;
+            background: rgba(0,0,0,0.6);
             border: 1px solid #555;
             display: flex; justify-content: center; align-items: center;
-            font-size: 12px; opacity: 0.3;
+            font-size: 14px; opacity: 0.3;
+            border-radius: 4px;
         }
-        .item.collected { opacity: 1; border-color: #fff; box-shadow: 0 0 5px #fff; }
+        .item.collected { opacity: 1; border-color: #fff; box-shadow: 0 0 8px rgba(255,255,255,0.5); }
 
-        #ui-layer {
+        #dialogue-box {
             position: absolute;
             bottom: 20px;
             left: 50%; transform: translateX(-50%);
-            width: 90%;
-            max-width: 600px;
-            background: #000;
-            border: 2px solid #fff;
-            padding: 15px;
-            font-size: 16px;
-            line-height: 1.5;
+            width: 85%;
+            background: rgba(0,0,0,0.9);
+            border: 1px solid #fff;
+            padding: 12px;
+            font-size: 14px;
+            line-height: 1.6;
             display: none;
-            z-index: 20;
-            box-shadow: 0 0 10px #fff;
-            pointer-events: none;
+            pointer-events: auto; /* Allow clicking to advance */
+            box-shadow: 0 0 15px rgba(0,0,0,0.8);
         }
 
         #ending-overlay {
@@ -121,59 +122,67 @@
             transition: opacity 3s;
         }
 
-        /* --- 虚拟手把 (默认隐藏) --- */
+        /* --- 掌机模式控制 (Mobile Controls) --- */
         #mobile-controls {
-            display: none; 
-            position: fixed; /* 固定在屏幕上，不受容器限制 */
-            bottom: 0; left: 0; width: 100%; height: 100%;
-            z-index: 40;
+            display: none; /* JS enables this */
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            z-index: 5; /* Behind canvas container visually if overlapping, but side areas are clear */
             pointer-events: none;
         }
-        /* JS 激活时显示 */
-        #mobile-controls.visible { display: block; }
+        #mobile-controls.visible { display: flex; justify-content: space-between; align-items: flex-end; }
 
-        .dpad-area {
-            position: absolute;
-            bottom: 40px; left: 30px;
+        .control-side {
+            width: 160px; height: 100%;
+            pointer-events: auto;
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .dpad-cross {
+            position: relative;
             width: 140px; height: 140px;
-            pointer-events: auto;
+            margin-bottom: 40px;
+            margin-left: 20px;
+        }
+        
+        .action-btn-area {
+            width: 100px; height: 100px;
+            margin-bottom: 60px;
+            margin-right: 40px;
         }
 
-        .action-area {
+        .touch-btn {
             position: absolute;
-            bottom: 60px; right: 40px;
-            width: 80px; height: 80px;
-            pointer-events: auto;
-        }
-
-        .dpad-btn, .btn-a {
-            background: rgba(255, 255, 255, 0.15);
+            background: rgba(255, 255, 255, 0.1);
             border: 1px solid rgba(255, 255, 255, 0.2);
-            display: flex; justify-content: center; align-items: center;
-            color: rgba(255,255,255,0.4);
-            touch-action: none;
-            position: absolute;
             backdrop-filter: blur(2px);
+            touch-action: none;
         }
-        .active-btn { background: rgba(255, 255, 255, 0.4) !important; }
+        .touch-btn:active { background: rgba(255, 255, 255, 0.3); }
 
-        .d-up { top: 0; left: 33%; width: 34%; height: 33%; border-radius: 8px 8px 0 0; }
-        .d-down { bottom: 0; left: 33%; width: 34%; height: 33%; border-radius: 0 0 8px 8px; }
-        .d-left { top: 33%; left: 0; width: 33%; height: 34%; border-radius: 8px 0 0 8px; }
-        .d-right { top: 33%; right: 0; width: 33%; height: 34%; border-radius: 0 8px 8px 0; }
+        .d-up { top: 0; left: 34%; width: 32%; height: 34%; border-radius: 6px 6px 0 0; }
+        .d-down { bottom: 0; left: 34%; width: 32%; height: 34%; border-radius: 0 0 6px 6px; }
+        .d-left { top: 34%; left: 0; width: 34%; height: 32%; border-radius: 6px 0 0 6px; }
+        .d-right { top: 34%; right: 0; width: 34%; height: 32%; border-radius: 0 6px 6px 0; }
         
         .btn-a {
-            width: 100%; height: 100%;
+            width: 80px; height: 80px;
             border-radius: 50%;
+            background: rgba(255, 255, 255, 0.15);
+            border: 2px solid rgba(255, 255, 255, 0.4);
+            color: rgba(255,255,255,0.8);
             font-size: 24px; font-weight: bold;
-            color: #fff;
+            display: flex; justify-content: center; align-items: center;
         }
 
         /* 开始画面 */
         #start-screen {
             position: fixed;
             top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.95);
+            background: #000;
             z-index: 100;
             display: flex;
             flex-direction: column;
@@ -181,77 +190,89 @@
             align-items: center;
             color: #fff;
             padding: 20px;
-            text-align: center;
         }
-        #start-btn {
-            margin-top: 30px;
-            padding: 15px 30px;
-            border: 2px solid #fff;
+        
+        .lang-select {
+            display: flex;
+            gap: 20px;
+            margin-top: 40px;
+        }
+        
+        .lang-btn {
             background: transparent;
-            color: #fff;
+            border: 1px solid #555;
+            color: #aaa;
+            padding: 10px 20px;
             font-family: inherit;
-            font-size: 18px;
             cursor: pointer;
-            transition: all 0.3s;
+            transition: 0.3s;
         }
-        #start-btn:hover { background: #fff; color: #000; }
+        .lang-btn:hover { border-color: #fff; color: #fff; }
+
+        h1 { font-weight: normal; letter-spacing: 4px; margin-bottom: 5px; }
+        h2 { font-weight: normal; font-size: 14px; color: #666; letter-spacing: 2px; }
+
     </style>
 </head>
 <body>
 
-<!-- 游戏容器 -->
-<div id="game-container">
-    <canvas id="gameCanvas" width="320" height="240"></canvas>
-    <div class="scanlines"></div>
-    <div class="room-title" id="room-name"></div>
-    <div id="ending-overlay"></div>
-    
-    <div id="inventory">
-        <div class="item" id="item-west" title="爸爸的糖果">🍬</div>
-        <div class="item" id="item-east" title="妈妈的眼泪">💧</div>
-        <div class="item" id="item-north" title="无法飞翔">🪶</div>
+<div id="game-wrapper">
+    <!-- 左侧手柄区域 -->
+    <div id="mobile-controls">
+        <div class="control-side">
+            <div class="dpad-cross">
+                <div class="touch-btn d-up" data-key="up"></div>
+                <div class="touch-btn d-left" data-key="left"></div>
+                <div class="touch-btn d-right" data-key="right"></div>
+                <div class="touch-btn d-down" data-key="down"></div>
+            </div>
+        </div>
+        <!-- 占位符让中间空出来给 Canvas -->
+        <div style="flex: 1;"></div>
+        <!-- 右侧手柄区域 -->
+        <div class="control-side">
+            <div class="action-btn-area">
+                <div class="touch-btn btn-a" data-key="action">A</div>
+            </div>
+        </div>
     </div>
 
-    <div id="ui-layer">
-        <div id="dialogue-text"></div>
+    <div id="canvas-container">
+        <canvas id="gameCanvas" width="320" height="240"></canvas>
+        <div class="scanlines"></div>
+        
+        <!-- UI Overlay -->
+        <div class="ui-overlay">
+            <div class="room-title" id="room-name"></div>
+            <div id="inventory">
+                <div class="item" id="item-west">🍬</div>
+                <div class="item" id="item-east">💧</div>
+                <div class="item" id="item-north">🪶</div>
+            </div>
+            <div id="dialogue-box"></div>
+            <div id="ending-overlay"></div>
+        </div>
     </div>
 </div>
 
-<!-- 虚拟手把 (独立于容器，覆盖全屏) -->
-<div id="mobile-controls">
-    <div class="dpad-area">
-        <div class="dpad-btn d-up" data-key="up">▲</div>
-        <div class="dpad-btn d-left" data-key="left">◀</div>
-        <div class="dpad-btn d-right" data-key="right">▶</div>
-        <div class="dpad-btn d-down" data-key="down">▼</div>
-    </div>
-    <div class="action-area">
-        <div class="btn-a" data-key="action">A</div>
-    </div>
-</div>
-
-<!-- 开始画面 -->
 <div id="start-screen">
-    <h2 style="margin-bottom:10px; letter-spacing: 2px;">冬之脉</h2>
-    <div style="font-size:12px; color:#888; margin-bottom: 20px;">Vein of Winter</div>
-    <p style="font-size:13px; color:#aaa; max-width: 300px; line-height: 1.6;">
-        如果使用手机游玩，请关闭静音模式。<br>
-        推荐佩戴耳机。
-    </p>
-    <button id="start-btn">开始观测</button>
+    <h1>冬之脉</h1>
+    <h2>Vein of Winter</h2>
+    <div class="lang-select">
+        <button class="lang-btn" onclick="startGame('CN')">中文</button>
+        <button class="lang-btn" onclick="startGame('EN')">English</button>
+        <button class="lang-btn" onclick="startGame('JP')">日本語</button>
+    </div>
+    <p style="margin-top:30px; font-size: 12px; color: #444;">Headphones Recommended</p>
 </div>
 
 <script>
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
-const uiLayer = document.getElementById('ui-layer');
-const uiText = document.getElementById('dialogue-text');
+const uiDialogue = document.getElementById('dialogue-box');
 const roomNameEl = document.getElementById('room-name');
 const endingOverlay = document.getElementById('ending-overlay');
-const startScreen = document.getElementById('start-screen');
-const startBtn = document.getElementById('start-btn');
 const mobileControls = document.getElementById('mobile-controls');
-
 const invItems = {
     west: document.getElementById('item-west'),
     east: document.getElementById('item-east'),
@@ -262,13 +283,111 @@ const GAME_WIDTH = 320;
 const GAME_HEIGHT = 240;
 const SPEED = 2;
 
-// --- 音頻系統 (iOS 修复版) ---
+// --- 语言数据 (Localization) ---
+const TEXT = {
+    CN: {
+        title: "冬之脉",
+        items: { west: "爸爸的糖果", east: "妈妈的眼泪", north: "无法飞翔" },
+        rooms: { 
+            center: "心脏", west: "记忆回廊", room_w: "糖果屋", 
+            east: "白色长廊", room_e: "无菌室", 
+            north: "警报", room_n: "警告", 
+            south: "深渊", garden: "暖阳", cabin: "家" 
+        },
+        dialogue: {
+            intro_1: ["它跳得好累。", "医生叔叔，如果我乖乖吃药，还能回家吗？", "树没有回答我。它只是在流血。"],
+            intro_2: ["树上有东西落下来了。", "就在脚边。"],
+            intro_3: ["我都想起来了。", "爸爸偷偷给的糖，妈妈落下的眼泪，还有自由的羽毛。", "线已经断了。", "我回不去了。", "南方的墙壁消失了。", {action: 'openGate'}],
+            intro_done: ["心跳声消失了。", "變成了一條通往南方的路。", "我要走過去嗎？"],
+            feather_pickup: ["一根白色的羽毛，从树梢落了下来。", "它很轻，身体好像也变轻了。", "如果我抓住它，是不是就能飞回爸爸妈妈身边？", "...", "不行，我飞不动了。", "对不起，爸爸妈妈。", {action: 'getNorth'}],
+            candy_pickup: ["爸爸偷偷塞给我的。", "「别告诉妈妈」，他笑着说。", "可是爸爸，你的眼睛为什么是红的？", "我吃不下了，但我会把它带走。", {action: 'getWest'}],
+            candy_done: ["糖果融化了。", "爸爸，我不再饿了。"],
+            tear_pickup: ["地上有个发光的东西。", "那不是玻璃。", "那是妈妈那一刻落在我手背上的眼泪。", "烫烫的，却又那么凉。", "对不起，妈妈，别为我哭了。", {action: 'getEast'}],
+            tear_done: ["点滴架。", "一滴，两滴...时间过得好慢。", "我想回家睡觉。"],
+            bird_alive: ["它停在树梢上。", "看起来很安静。"],
+            bird_gone: ["它飞走了。", "我也想飞走。"],
+            spike_tree: ["哔——————", "这声音好刺耳。", "爸爸妈妈，别听。", "把耳朵捂起来。", "（这里好像没有东西了，该回去了）"],
+            grandma: ["来，孩子。", "不用再打针了，不用再吃苦药了。", "这里有好多你喜欢的糖。", "我们走吧。", {action: 'startEnding'}],
+            ending_garden: ["「我还放不下爸爸妈妈...」", "老奶奶摸了摸我的头。", "「傻孩子，爱是不会断的。」", "「去梦里告诉他们，你现在很开心。」", {action: 'triggerCabinScene'}],
+            ending_cabin: ["那天晚上，爸爸和妈妈做了一个梦。", "梦见他们女儿在一片开满鲜花的地方奔跑。", "她回过头，笑得好甜，嘴里塞满了糖果。", "「爸爸妈妈，我不痛啦！」", "醒来的时候，窗外有一颗流星划过。", "他们紧紧抱在一起，哭了。", "但是这一次，心里是暖的。", "晚安，宝贝。", {action: 'finalStop'}],
+            credits: ["冬之脉 - Vein of Winter", "感谢您的游玩与陪伴", "[ 刷新页面重来 ]"]
+        }
+    },
+    EN: {
+        title: "Vein of Winter",
+        items: { west: "Dad's Candy", east: "Mom's Tear", north: "Broken Wing" },
+        rooms: { 
+            center: "The Heart", west: "Memory Lane", room_w: "Sweet Rot", 
+            east: "Sterile Hall", room_e: "Isolation", 
+            north: "Panic", room_n: "Critical", 
+            south: "The Abyss", garden: "Warmth", cabin: "Home" 
+        },
+        dialogue: {
+            intro_1: ["It's beating so tiredly.", "Doctor, if I take my meds, can I go home?", "The tree doesn't answer. It just bleeds."],
+            intro_2: ["Something fell from the tree.", "Right at my feet."],
+            intro_3: ["I remember everything now.", "Dad's candy, Mom's tears, and the feather of freedom.", "The line is flat.", "I can't go back.", "The southern wall is gone.", {action: 'openGate'}],
+            intro_done: ["The heartbeat is gone.", "A path to the south has opened.", "Should I go?"],
+            feather_pickup: ["A white feather fell from the branch.", "It's so light. My body feels light too.", "If I grab it, can I fly back to Mom and Dad?", "...", "No, I can't fly anymore.", "I'm sorry.", {action: 'getNorth'}],
+            candy_pickup: ["Dad sneaked this to me.", "'Don't tell Mom,' he smiled.", "But Dad, why were your eyes so red?", "I can't eat it anymore, but I'll take it.", {action: 'getWest'}],
+            candy_done: ["The candy melted.", "Dad, I'm not hungry anymore."],
+            tear_pickup: ["Something shining on the floor.", "Not glass.", "It's the tear Mom dropped on my hand that day.", "So hot, yet so cold.", "Sorry Mom, please don't cry.", {action: 'getEast'}],
+            tear_done: ["IV drips.", "Drop, drop... time moves so slow.", "I want to sleep in my own bed."],
+            bird_alive: ["It's resting on the branch.", "So quiet."],
+            bird_gone: ["It flew away.", "I want to fly away too."],
+            spike_tree: ["Beep——————", "That sound hurts.", "Mom, Dad, don't listen.", "Cover your ears.", "(Nothing left here, I should go back)"],
+            grandma: ["Come, child.", "No more needles, no more bitter medicine.", "Look, so much candy here.", "Let's go.", {action: 'startEnding'}],
+            ending_garden: ["'But I miss Mom and Dad...'", "Grandma patted my head.", "'Silly child, love never breaks.'", "'Go tell them in their dreams that you are happy now.'", {action: 'triggerCabinScene'}],
+            ending_cabin: ["That night, Mom and Dad had a dream.", "They saw their daughter running in a field of flowers.", "She turned back, smiling sweetly, mouth full of candy.", "'Mom, Dad, it doesn't hurt anymore!'", "When they woke up, a shooting star passed by.", "They held each other tightly and cried.", "But this time, their hearts felt warm.", "Goodnight, my love.", {action: 'finalStop'}],
+            credits: ["Vein of Winter", "Thank you for playing.", "[ Refresh to Restart ]"]
+        }
+    },
+    JP: {
+        title: "冬の脈",
+        items: { west: "パパの飴", east: "ママの涙", north: "飛べない羽" },
+        rooms: { 
+            center: "心臓", west: "記憶の回廊", room_w: "お菓子の家", 
+            east: "白い廊下", room_e: "隔離室", 
+            north: "警報", room_n: "危篤", 
+            south: "深淵", garden: "陽だまり", cabin: "家" 
+        },
+        dialogue: {
+            intro_1: ["鼓動が...重い。", "お医者さん、薬飲んだらお家帰れる？", "木は答えない。ただ血を流している。"],
+            intro_2: ["木から何かが落ちてきた。", "足元に。"],
+            intro_3: ["全部思い出した。", "パパの飴、ママの涙、自由な羽。", "線はもう切れている。", "もう戻れないんだ。", "南の壁が消えた。", {action: 'openGate'}],
+            intro_done: ["鼓動が消えた。", "南への道が開いている。", "行こうかな。"],
+            feather_pickup: ["白い羽が落ちてきた。", "すごく軽い。体も軽い。", "これを掴めば、パパとママの元へ飛べるかな？", "...", "ううん、もう飛べない。", "ごめんね。", {action: 'getNorth'}],
+            candy_pickup: ["パパがこっそりくれた。", "「ママには内緒だぞ」って笑ってた。", "でもパパ、どうして目が赤いの？", "もう食べられないけど、持っていくね。", {action: 'getWest'}],
+            candy_done: ["飴は溶けてしまった。", "パパ、もうお腹すいてないよ。"],
+            tear_pickup: ["床で何かが光ってる。", "ガラスじゃない。", "あの日、私の手に落ちたママの涙だ。", "熱くて、でも冷たくて。", "ごめんねママ、もう泣かないで。", {action: 'getEast'}],
+            tear_done: ["点滴。", "ポタ、ポタ...時間が遅いよ。", "自分のお布団で眠りたい。"],
+            bird_alive: ["枝に止まっている。", "静かだ。"],
+            bird_gone: ["飛んでいった。", "私も行きたい。"],
+            spike_tree: ["ピーーーーー", "耳が痛い。", "パパ、ママ、聞かないで。", "耳を塞いで。", "（もうここには何もないみたい）"],
+            grandma: ["おいで。", "もう注射も、苦い薬もないよ。", "好きな飴もたくさんあるから。", "さあ、行こう。", {action: 'startEnding'}],
+            ending_garden: ["「でも、パパとママが...」", "お婆ちゃんは私の頭を撫でた。", "「大丈夫、愛はずっと繋がってるよ。」", "「夢で伝えておいで。もう幸せだって。」", {action: 'triggerCabinScene'}],
+            ending_cabin: ["その夜、パパとママは夢を見た。", "花畑を駆け回る娘の夢を。", "彼女は振り返り、口いっぱいに飴を頬張って笑った。", "「パパ、ママ、もう痛くないよ！」", "目が覚めると、窓の外を流れ星が通った。", "二人は抱き合って泣いた。", "でも今回は、心が温かかった。", "おやすみ、私の宝物。", {action: 'finalStop'}],
+            credits: ["冬の脈 - Vein of Winter", "遊んでくれてありがとう", "[ 更新して再開 ]"]
+        }
+    }
+};
+
+// --- Game State ---
+const gameState = {
+    lang: 'CN', // Default
+    room: 'center', 
+    player: { x: 160, y: 180, w: 8, h: 14, facing: 'down', moving: false, visible: true },
+    target: { x: 160, y: 180 },
+    dialogue: { active: false, queue: [], callback: null },
+    snow: [],
+    input: { up: false, down: false, left: false, right: false },
+    flags: { hasWest: false, hasEast: false, hasNorth: false, gateOpen: false, endingPhase: 0 },
+    anim: { t: 0, dragon: [], bird: {x:50, y:50, tx:50, ty:50} }
+};
+
+// --- 音頻系統 ---
 const AudioSys = {
-    ctx: null,
-    masterGain: null,
-    isPlaying: false,
+    ctx: null, masterGain: null, isPlaying: false,
     notes: [220, 261.63, 329.63, 196.00, 246.94, 293.66], 
-    
     init: function() {
         if (!this.ctx) {
             const AudioContext = window.AudioContext || window.webkitAudioContext;
@@ -278,67 +397,39 @@ const AudioSys = {
             this.masterGain.connect(this.ctx.destination);
         }
         if (this.ctx.state === 'suspended') this.ctx.resume();
-
-        // 播放静音音符解锁
-        this.playTone(440, 'sine', 0.1, 0.001);
-
-        if (!this.isPlaying) {
-            this.isPlaying = true;
-            this.scheduleNextNote();
-        }
+        this.playTone(440, 'sine', 0.1, 0.001); // unlock
+        if (!this.isPlaying) { this.isPlaying = true; this.scheduleNextNote(); }
     },
-
     playTone: function(freq, type='sine', duration=0.5, vol=0.1) {
         if (!this.ctx) return;
-        const osc = this.ctx.createOscillator();
-        const gain = this.ctx.createGain();
-        osc.type = type;
-        osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+        const osc = this.ctx.createOscillator(); const gain = this.ctx.createGain();
+        osc.type = type; osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
         gain.gain.setValueAtTime(0, this.ctx.currentTime);
         gain.gain.linearRampToValueAtTime(vol, this.ctx.currentTime + 0.05);
         gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + duration);
-        osc.connect(gain);
-        gain.connect(this.masterGain);
-        osc.start();
-        osc.stop(this.ctx.currentTime + duration);
+        osc.connect(gain); gain.connect(this.masterGain);
+        osc.start(); osc.stop(this.ctx.currentTime + duration);
     },
-
     playSFX: function(name) {
         if (!this.ctx) return;
         if (this.ctx.state === 'suspended') this.ctx.resume();
-
         switch(name) {
             case 'step': this.playNoise(0.05, 0.05); break;
             case 'text': this.playTone(800 + Math.random()*200, 'square', 0.05, 0.02); break;
-            case 'pickup': 
-                this.playTone(1200, 'sine', 0.1, 0.1);
-                setTimeout(() => this.playTone(1800, 'sine', 0.3, 0.1), 100);
-                break;
+            case 'pickup': this.playTone(1200, 'sine', 0.1, 0.1); setTimeout(() => this.playTone(1800, 'sine', 0.3, 0.1), 100); break;
             case 'heartbeat': this.playTone(60, 'triangle', 0.2, 0.2); break;
             case 'open': this.playNoise(1.0, 0.1); break;
-            case 'warmth':
-                this.playTone(261.63, 'sine', 3, 0.05); 
-                this.playTone(329.63, 'sine', 3, 0.05); 
-                this.playTone(392.00, 'sine', 3, 0.05); 
-                break;
+            case 'warmth': this.playTone(261.63, 'sine', 3, 0.05); this.playTone(329.63, 'sine', 3, 0.05); this.playTone(392.00, 'sine', 3, 0.05); break;
         }
     },
-
     playNoise: function(duration, vol) {
-        const bufferSize = this.ctx.sampleRate * duration;
-        const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
-        const data = buffer.getChannelData(0);
-        for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
-        const noise = this.ctx.createBufferSource();
-        noise.buffer = buffer;
-        const gain = this.ctx.createGain();
-        gain.gain.setValueAtTime(vol, this.ctx.currentTime);
+        const buf = this.ctx.createBuffer(1, this.ctx.sampleRate * duration, this.ctx.sampleRate);
+        const data = buf.getChannelData(0); for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+        const noise = this.ctx.createBufferSource(); noise.buffer = buf;
+        const gain = this.ctx.createGain(); gain.gain.setValueAtTime(vol, this.ctx.currentTime);
         gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + duration);
-        noise.connect(gain);
-        gain.connect(this.masterGain);
-        noise.start();
+        noise.connect(gain); gain.connect(this.masterGain); noise.start();
     },
-
     scheduleNextNote: function() {
         if (!this.isPlaying) return;
         const note = this.notes[Math.floor(Math.random() * this.notes.length)];
@@ -348,64 +439,41 @@ const AudioSys = {
     }
 };
 
-// --- 游戏状态 ---
+// --- Helpers ---
+function t(key, subkey) {
+    if (subkey) return TEXT[gameState.lang][key][subkey];
+    return TEXT[gameState.lang][key];
+}
 
-const gameState = {
-    room: 'center', 
-    player: { x: 160, y: 180, w: 8, h: 14, facing: 'down', moving: false, visible: true },
-    target: { x: 160, y: 180 },
-    dialogue: { active: false, queue: [], callback: null },
-    snow: [],
-    input: { up: false, down: false, left: false, right: false },
-    flags: {
-        hasWest: false, hasEast: false, hasNorth: false, gateOpen: false, endingPhase: 0
-    },
-    anim: { t: 0, dragon: [], bird: {x:50, y:50, tx:50, ty:50} }
-};
-
-// --- 房间数据 ---
-
+// --- 房间配置 ---
 const rooms = {
     'center': {
-        name: "心臟 (The Heart)",
-        bg: '#050505',
+        nameKey: 'center', bg: '#050505',
         entities: [
             { id: 'crowd_bg', type: 'stickmen', y: 140, alpha: 0.5 },
             { id: 'tree_main', type: 'tree', x: 160, y: 140, w: 20, h: 20, color: '#aa0000', variant: 'vein', 
-              logic: (state) => {
-                  if (state.flags.gateOpen) return ["心跳聲消失了。", "變成了一條通往南方的路。", "我要走過去嗎？"];
-                  if (state.flags.hasWest && state.flags.hasEast && !state.flags.hasNorth) {
-                      return ["樹上有什麼東西落下來了。", "就在腳邊。"];
-                  }
-                  if (state.flags.hasWest && state.flags.hasEast && state.flags.hasNorth) {
-                      return ["我都想起來了。", "爸爸偷偷給的糖，媽媽落下的眼淚，還有自由的羽毛。", "線已經斷了。", "我回不去了。", "南方的牆壁消失了。", {action: 'openGate'}];
-                  }
-                  AudioSys.playSFX('heartbeat');
-                  return ["它跳得好累。", "醫生叔叔，如果我乖乖吃藥，還能回家嗎？", "樹沒有回答我。它只是在流血。"];
+              logic: (s) => {
+                  if (s.flags.gateOpen) return t('dialogue', 'intro_done');
+                  if (s.flags.hasWest && s.flags.hasEast && !s.flags.hasNorth) return t('dialogue', 'intro_2');
+                  if (s.flags.hasWest && s.flags.hasEast && s.flags.hasNorth) return t('dialogue', 'intro_3');
+                  AudioSys.playSFX('heartbeat'); return t('dialogue', 'intro_1');
               }
             },
             { id: 'feather_center', type: 'item_pickup', x: 160, y: 170, w: 15, h: 15, color: '#fff',
-              condition: (state) => state.flags.hasWest && state.flags.hasEast && !state.flags.hasNorth,
-              logic: () => ["一根白色的羽毛，從樹梢落了下來。", "它很輕，身體好像也變輕了。", "如果我抓住它，是不是就能飛回爸爸媽媽身邊？", "...", "不行，我飛不動了。", "對不起，爸爸媽媽。", {action: 'getNorth'}]
+              condition: (s) => s.flags.hasWest && s.flags.hasEast && !s.flags.hasNorth,
+              logic: () => t('dialogue', 'feather_pickup')
             },
-            { id: 'moon', type: 'moon', x: 160, y: 80, 
-              logic: () => ["那是手術室的燈嗎？", "還是月亮？", "媽媽說月亮上沒有疼痛。", "我想去那裡。"]
-            },
+            { id: 'moon', type: 'moon', x: 160, y: 80 },
             { id: 'path_w', type: 'warp', x: 0, y: 100, w: 10, h: 40, target: 'corridor_w', targetX: 280, targetY: 120 },
             { id: 'path_e', type: 'warp', x: 310, y: 100, w: 10, h: 40, target: 'corridor_e', targetX: 40, targetY: 120 },
             { id: 'path_n', type: 'warp', x: 130, y: 0, w: 60, h: 10, target: 'corridor_n', targetX: 160, targetY: 220 },
-            { id: 'path_s', type: 'warp', x: 130, y: 230, w: 60, h: 10, target: 'south', targetX: 160, targetY: 20, 
-              condition: (state) => state.flags.gateOpen },
+            { id: 'path_s', type: 'warp', x: 130, y: 230, w: 60, h: 10, target: 'south', targetX: 160, targetY: 20, condition: (s) => s.flags.gateOpen },
             { id: 'crowd_fg', type: 'stickmen', y: 220, alpha: 0.8 },
-            { id: 'wall_text', type: 'solid', x: 20, y: 220, w: 280, h: 20, 
-              condition: (state) => !state.flags.gateOpen, 
-              logic: () => ["他們手拉著手擋在這裡。", "是爸爸和媽媽。", "他們在哭，抓得我好緊。", "「不要走」，他們說。", "我也捨不得你們..."] 
-            }
+            { id: 'wall_text', type: 'solid', x: 20, y: 220, w: 280, h: 20, condition: (s) => !s.flags.gateOpen }
         ]
     },
     'corridor_w': {
-        name: "長廊 - 西 (Memory Lane)",
-        bg: '#110511',
+        nameKey: 'west', bg: '#110511',
         entities: [
             { id: 'path_back', type: 'warp', x: 310, y: 100, w: 10, h: 40, target: 'center', targetX: 20, targetY: 120 },
             { id: 'path_room', type: 'warp', x: 0, y: 100, w: 10, h: 40, target: 'west_room', targetX: 280, targetY: 120 },
@@ -413,22 +481,16 @@ const rooms = {
         ]
     },
     'west_room': {
-        name: "糖果屋 (Sweet Rot)",
-        bg: '#1a051a',
+        nameKey: 'room_w', bg: '#1a051a',
         entities: [
             { id: 'tree_pink', type: 'tree', x: 100, y: 60, color: '#ff69b4', variant: 'melt',
-              logic: (state) => {
-                  if (state.flags.hasWest) return ["糖果融化了。", "爸爸，我不再餓了。"];
-                  return ["爸爸偷偷塞給我的。", "「別告訴媽媽」，他笑著說。", "可是爸爸，你的眼睛為什麼是紅的？", "我吃不下了，但我會把它帶走。", {action: 'getWest'}];
-              }
-            },
+              logic: (s) => s.flags.hasWest ? t('dialogue', 'candy_done') : t('dialogue', 'candy_pickup') },
             { id: 'dragon', type: 'dragon' },
             { id: 'path_back', type: 'warp', x: 310, y: 100, w: 10, h: 40, target: 'corridor_w', targetX: 20, targetY: 120 }
         ]
     },
     'corridor_e': {
-        name: "長廊 - 東 (Sterile Hall)",
-        bg: '#051105',
+        nameKey: 'east', bg: '#051105',
         entities: [
             { id: 'path_back', type: 'warp', x: 0, y: 100, w: 10, h: 40, target: 'center', targetX: 280, targetY: 120 },
             { id: 'path_room', type: 'warp', x: 310, y: 100, w: 10, h: 40, target: 'east_room', targetX: 40, targetY: 120 },
@@ -436,22 +498,17 @@ const rooms = {
         ]
     },
     'east_room': {
-        name: "無菌室 (Isolation)",
-        bg: '#051a05',
+        nameKey: 'room_e', bg: '#051a05',
         entities: [
             { id: 'tree_green', type: 'tree', x: 200, y: 60, color: '#2e8b57', variant: 'drip',
-              logic: () => ["點滴架。", "一滴，兩滴...時間過得好慢。", "我想回家睡覺。"]
-            },
+              logic: () => t('dialogue', 'tear_done') },
             { id: 'shard_ground', type: 'item_pickup', x: 160, y: 150, w: 15, h: 15, color: '#aaf',
-              condition: (state) => !state.flags.hasEast,
-              logic: () => ["地上有個發光的東西。", "那不是玻璃。", "那是媽媽那一刻落在我手背上的眼淚。", "燙燙的，卻又那麼涼。", "對不起，媽媽，別為我哭了。", {action: 'getEast'}]
-            },
+              condition: (s) => !s.flags.hasEast, logic: () => t('dialogue', 'tear_pickup') },
             { id: 'path_back', type: 'warp', x: 0, y: 100, w: 10, h: 40, target: 'corridor_e', targetX: 280, targetY: 120 }
         ]
     },
     'corridor_n': {
-        name: "長廊 - 北 (Panic)",
-        bg: '#111100',
+        nameKey: 'north', bg: '#111100',
         entities: [
             { id: 'path_back', type: 'warp', x: 130, y: 230, w: 60, h: 10, target: 'center', targetX: 160, targetY: 20 },
             { id: 'path_room', type: 'warp', x: 130, y: 0, w: 60, h: 10, target: 'north_room', targetX: 160, targetY: 220 },
@@ -459,446 +516,225 @@ const rooms = {
         ]
     },
     'north_room': {
-        name: "警告 (Critical)",
-        bg: '#1a1a00',
+        nameKey: 'room_n', bg: '#1a1a00',
         entities: [
-            { id: 'bird', type: 'bird', 
-              logic: (state) => ["它停在樹梢上。", "看起來很安靜。"]
-            },
+            { id: 'bird', type: 'bird', logic: (s) => t('dialogue', 'bird_alive') },
             { id: 'tree_yellow', type: 'tree', x: 160, y: 50, color: '#daa520', variant: 'spike',
-              logic: () => ["嗶——————", "這聲音好刺耳。", "爸爸媽媽，別聽。", "把耳朵摀起來。", "（這裡好像沒有東西了，該回去了）"] 
-            },
+              logic: () => t('dialogue', 'spike_tree') },
             { id: 'path_back', type: 'warp', x: 130, y: 230, w: 60, h: 10, target: 'corridor_n', targetX: 160, targetY: 20 }
         ]
     },
     'south': {
-        name: "深淵 (The Light)",
-        bg: '#111', 
+        nameKey: 'south', bg: '#111',
         entities: [
-            { id: 'grandma', type: 'npc_grandma', x: 160, y: 100,
-              logic: () => ["來，孩子。", "不用再打針了，不用再吃苦藥了。", "這裡有好多你喜歡的糖。", "我們走吧。", {action: 'startEnding'}]
-            },
-            { id: 'path_back', type: 'warp', x: 130, y: 0, w: 60, h: 10, target: 'center', targetX: 160, targetY: 200,
-              condition: (state) => state.flags.endingPhase === 0 }
+            { id: 'grandma', type: 'npc_grandma', x: 160, y: 100, logic: () => t('dialogue', 'grandma') },
+            { id: 'path_back', type: 'warp', x: 130, y: 0, w: 60, h: 10, target: 'center', targetX: 160, targetY: 200, condition: (s) => s.flags.endingPhase === 0 }
         ]
     }
 };
 
-// --- 初始化与事件绑定 ---
-
-startBtn.onclick = () => {
+// --- 启动逻辑 ---
+function startGame(lang) {
+    gameState.lang = lang;
     AudioSys.init();
-    startScreen.style.display = 'none';
+    document.getElementById('start-screen').style.display = 'none';
     
-    // 检测是否为触摸设备来显示手把
+    // Check Touch for UI
     if ('ontouchstart' in window || navigator.maxTouchPoints > 0) {
-        mobileControls.classList.add('visible');
-        // 手机模式下调整UI对话框位置防止遮挡
-        uiLayer.style.bottom = '40%';
+        document.getElementById('mobile-controls').classList.add('visible');
+        document.getElementById('dialogue-box').style.bottom = '40%';
     }
-};
-
-// 虚拟手把事件
-function bindTouchControls() {
-    const btns = document.querySelectorAll('.dpad-btn, .btn-a');
     
+    // Update Text UI
+    invItems.west.title = t('items', 'west');
+    invItems.east.title = t('items', 'east');
+    invItems.north.title = t('items', 'north');
+    updateRoomName();
+}
+
+function updateRoomName() {
+    const room = rooms[gameState.room];
+    if(room.nameKey === 'garden') document.getElementById('room-name').style.color = '#fff';
+    document.getElementById('room-name').innerText = t('rooms', room.nameKey || 'center');
+}
+
+// --- 事件绑定 ---
+function bindControls() {
+    const btns = document.querySelectorAll('.touch-btn');
     btns.forEach(btn => {
         const key = btn.dataset.key;
         if(!key) return;
-
-        const handleDown = (e) => {
-            if(e.cancelable) e.preventDefault(); 
-            btn.classList.add('active-btn');
-            AudioSys.init(); // 再次尝试唤醒音频
-
-            if (key === 'action') {
-                if (gameState.dialogue.active) {
-                    nextDialogueLine();
-                } else {
-                    checkInteraction();
-                }
+        const down = (e) => {
+            if(e.cancelable) e.preventDefault();
+            btn.style.background = 'rgba(255,255,255,0.4)';
+            AudioSys.init(); // Re-trigger audio context
+            if(key === 'action') {
+                if(gameState.dialogue.active) nextDialogueLine();
+                else checkInteraction();
             } else {
                 gameState.input[key] = true;
             }
         };
-
-        const handleUp = (e) => {
+        const up = (e) => {
             if(e.cancelable) e.preventDefault();
-            btn.classList.remove('active-btn');
-            if (key !== 'action') {
-                gameState.input[key] = false;
-            }
+            btn.style.background = '';
+            if(key !== 'action') gameState.input[key] = false;
         };
-
-        btn.addEventListener('touchstart', handleDown, {passive: false});
-        btn.addEventListener('touchend', handleUp, {passive: false});
-        // 电脑测试用
-        btn.addEventListener('mousedown', handleDown);
-        btn.addEventListener('mouseup', handleUp);
+        btn.addEventListener('touchstart', down, {passive:false});
+        btn.addEventListener('touchend', up, {passive:false});
+        btn.addEventListener('mousedown', down);
+        btn.addEventListener('mouseup', up);
     });
 }
 
 function init() {
     for(let i=0; i<50; i++) gameState.snow.push({x: Math.random() * GAME_WIDTH, y: Math.random() * GAME_HEIGHT, speed: Math.random() * 1 + 0.5});
     for(let i=0; i<20; i++) gameState.anim.dragon.push({x: -50 - i*15, y: 50});
-    setupInput();
-    bindTouchControls(); 
-    changeRoom('center');
+    
+    bindControls();
+    
+    window.addEventListener('keydown', (e) => {
+        if(gameState.dialogue.active && (e.code==='Space'||e.code==='Enter')) { nextDialogueLine(); return; }
+        switch(e.key.toLowerCase()){
+            case 'w': case 'arrowup': gameState.input.up=true; break;
+            case 's': case 'arrowdown': gameState.input.down=true; break;
+            case 'a': case 'arrowleft': gameState.input.left=true; break;
+            case 'd': case 'arrowright': gameState.input.right=true; break;
+            case ' ': case 'enter': checkInteraction(); break;
+        }
+    });
+    window.addEventListener('keyup', (e) => {
+        switch(e.key.toLowerCase()){
+            case 'w': case 'arrowup': gameState.input.up=false; break;
+            case 's': case 'arrowdown': gameState.input.down=false; break;
+            case 'a': case 'arrowleft': gameState.input.left=false; break;
+            case 'd': case 'arrowright': gameState.input.right=false; break;
+        }
+    });
+    // Click move fallback
+    canvas.addEventListener('pointerdown', (e) => {
+        if(gameState.dialogue.active) { nextDialogueLine(); return; }
+        const isMobile = document.getElementById('mobile-controls').classList.contains('visible');
+        if(isMobile) return; 
+        
+        const rect = canvas.getBoundingClientRect();
+        const scaleX = GAME_WIDTH / rect.width;
+        const scaleY = GAME_HEIGHT / rect.height;
+        const clickX = (e.clientX - rect.left) * scaleX;
+        const clickY = (e.clientY - rect.top) * scaleY;
+        
+        let clicked = false;
+        if(gameState.flags.endingPhase === 0) {
+            rooms[gameState.room].entities.forEach(ent => {
+                if(ent.condition && !ent.condition(gameState)) return;
+                let ex=ent.x, ey=ent.y, ew=ent.w||20, eh=ent.h||20;
+                if(ent.type==='tree' && ent.variant==='vein') { ex=ent.x-ew/2; ey=ent.y-eh; }
+                if(ent.type==='npc_grandma') { ex=ent.x-10; ey=ent.y-10; }
+                if(checkRectCollide(clickX, clickY, 1, 1, ex-20, ey-20, ew+40, eh+40)) {
+                    interact(ent); clicked=true;
+                }
+            });
+        }
+        if(!clicked && gameState.flags.endingPhase === 0) {
+            gameState.target.x = clickX - gameState.player.w/2;
+            gameState.target.y = clickY - gameState.player.h/2;
+            gameState.player.moving = true;
+        }
+    });
+
     requestAnimationFrame(gameLoop);
 }
 
-function changeRoom(roomId) {
-    gameState.room = roomId;
-    roomNameEl.innerText = rooms[roomId].name;
+// --- Logic ---
+function changeRoom(id) {
+    gameState.room = id;
     gameState.player.moving = false;
-    if (roomId === 'south') {
-        roomNameEl.style.color = '#fff';
+    updateRoomName();
+    if(id === 'south') {
+        if(gameState.flags.endingPhase === 1) rooms[id].nameKey = 'garden';
+        else rooms[id].nameKey = 'south';
+        updateRoomName();
     }
 }
 
-// --- 逻辑处理 ---
-
-function handleAction(action) {
-    if (action === 'getWest') {
-        gameState.flags.hasWest = true;
-        invItems.west.classList.add('collected');
-        AudioSys.playSFX('pickup');
-    } else if (action === 'getEast') {
-        gameState.flags.hasEast = true;
-        invItems.east.classList.add('collected');
-        AudioSys.playSFX('pickup');
-    } else if (action === 'getNorth') {
-        gameState.flags.hasNorth = true;
-        invItems.north.classList.add('collected');
-        AudioSys.playSFX('pickup');
-    } else if (action === 'openGate') {
-        gameState.flags.gateOpen = true;
-        AudioSys.playSFX('open');
-    } else if (action === 'startEnding') {
+function handleAction(act) {
+    if(act === 'getWest') { gameState.flags.hasWest = true; invItems.west.classList.add('collected'); AudioSys.playSFX('pickup'); }
+    else if(act === 'getEast') { gameState.flags.hasEast = true; invItems.east.classList.add('collected'); AudioSys.playSFX('pickup'); }
+    else if(act === 'getNorth') { gameState.flags.hasNorth = true; invItems.north.classList.add('collected'); AudioSys.playSFX('pickup'); }
+    else if(act === 'openGate') { gameState.flags.gateOpen = true; AudioSys.playSFX('open'); }
+    else if(act === 'startEnding') {
         gameState.flags.endingPhase = 1;
         AudioSys.playSFX('warmth');
-        setTimeout(() => {
-            startDialogue([
-                "「我還放不下爸爸媽媽...」",
-                "老奶奶摸了摸我的頭。",
-                "「傻孩子，愛是不會斷的。」",
-                "「去夢裡告訴他們，你現在很開心。」",
-                {action: 'triggerCabinScene'}
-            ]);
-        }, 2000);
-    } else if (action === 'triggerCabinScene') {
-        endingOverlay.style.opacity = 1;
+        changeRoom('south');
+        setTimeout(() => startDialogue(t('dialogue', 'ending_garden')), 2000);
+    }
+    else if(act === 'triggerCabinScene') {
+        document.getElementById('ending-overlay').style.opacity = 1;
         setTimeout(() => {
             gameState.flags.endingPhase = 2;
-            endingOverlay.style.opacity = 0;
-            roomNameEl.innerText = "家 (Home)";
-            setTimeout(() => {
-                 startDialogue([
-                    "那天晚上，爸爸和媽媽做了一個夢。",
-                    "夢見他們的女兒在一片開滿鮮花的地方奔跑。",
-                    "她回過頭，笑得好甜，嘴裡塞滿了糖果。",
-                    "「爸爸媽媽，我不痛啦！」",
-                    "醒來的時候，窗外有一顆流星劃過。",
-                    "他們緊緊抱在一起，哭了。",
-                    "但是這一次，心裡是暖的。",
-                    "晚安，寶貝。",
-                    {action: 'finalStop'}
-                ]);
-            }, 1000);
+            document.getElementById('ending-overlay').style.opacity = 0;
+            document.getElementById('room-name').innerText = t('rooms', 'cabin');
+            setTimeout(() => startDialogue(t('dialogue', 'ending_cabin')), 1000);
         }, 2000);
-    } else if (action === 'finalStop') {
-        gameState.flags.endingPhase = 3;
-        endingOverlay.style.opacity = 1; 
-        setTimeout(() => {
-            uiLayer.style.display = 'none'; 
-        }, 1000);
-        return false; 
     }
-    return false;
+    else if(act === 'finalStop') {
+        gameState.flags.endingPhase = 3;
+        document.getElementById('ending-overlay').style.opacity = 1;
+        setTimeout(() => { uiDialogue.style.display = 'none'; }, 1000);
+    }
 }
 
-// --- 绘图与更新 ---
-
 function update() {
-    if (gameState.dialogue.active) return;
-    if (gameState.flags.endingPhase >= 2) return; 
-
+    if(gameState.dialogue.active || gameState.flags.endingPhase >= 2) return;
+    
     const p = gameState.player;
     let dx = 0, dy = 0;
-
-    if (gameState.input.up) dy = -SPEED;
-    if (gameState.input.down) dy = SPEED;
-    if (gameState.input.left) dx = -SPEED;
-    if (gameState.input.right) dx = SPEED;
+    if(gameState.input.up) dy = -SPEED;
+    if(gameState.input.down) dy = SPEED;
+    if(gameState.input.left) dx = -SPEED;
+    if(gameState.input.right) dx = SPEED;
     
-    // 鼠标点击移动 (作为辅助)
-    if (dx === 0 && dy === 0 && gameState.player.moving) {
+    if(dx===0 && dy===0 && p.moving) {
         const dist = Math.hypot(gameState.target.x - p.x, gameState.target.y - p.y);
-        if (dist < SPEED) {
-            p.x = gameState.target.x; p.y = gameState.target.y; gameState.player.moving = false;
-        } else {
+        if(dist < SPEED) { p.x = gameState.target.x; p.y = gameState.target.y; p.moving = false; }
+        else {
             const angle = Math.atan2(gameState.target.y - p.y, gameState.target.x - p.x);
             dx = Math.cos(angle) * SPEED; dy = Math.sin(angle) * SPEED;
         }
-    } else if (dx !== 0 || dy !== 0) gameState.player.moving = false;
+    } else if(dx!==0 || dy!==0) p.moving = false;
 
-    if ((dx !== 0 || dy !== 0) && Math.floor(Date.now() / 300) % 2 === 0) {
-        if (Math.random() > 0.8) AudioSys.playSFX('step');
-    }
+    if((dx!==0 || dy!==0) && Math.random()>0.9 && Math.floor(Date.now()/300)%2===0) AudioSys.playSFX('step');
 
-    let nextX = p.x + dx;
-    let nextY = p.y + dy;
-    let collided = false;
-    
-    const currentRoom = rooms[gameState.room];
-    if (gameState.room !== 'south') {
-        const pRect = { l: nextX, r: nextX + p.w, t: nextY, b: nextY + p.h };
-        for (let e of currentRoom.entities) {
-            if (e.condition && !e.condition(gameState)) continue; 
-            if (e.type === 'stickmen' || e.type === 'particles') continue; 
+    let nextX = p.x + dx, nextY = p.y + dy, collided = false;
+    if(nextX < 0) nextX = 0; if(nextX > GAME_WIDTH - p.w) nextX = GAME_WIDTH - p.w;
+    if(nextY < 0) nextY = 0; if(nextY > GAME_HEIGHT - p.h) nextY = GAME_HEIGHT - p.h;
 
-            let ex = e.x, ey = e.y, ew = e.w || 20, eh = e.h || 20;
-            if (e.type === 'tree' && e.variant === 'vein') { ex = e.x - ew/2; ey = e.y - eh; } 
+    if(gameState.room !== 'south') {
+        rooms[gameState.room].entities.forEach(ent => {
+            if(ent.condition && !ent.condition(gameState)) return;
+            if(['stickmen','particles'].includes(ent.type)) return;
+            let ex=ent.x, ey=ent.y, ew=ent.w||20, eh=ent.h||20;
+            if(ent.type==='tree' && ent.variant==='vein') { ex=ent.x-ew/2; ey=ent.y-eh; }
             
-            if (checkRectCollide(pRect.l, pRect.t, p.w, p.h, ex, ey, ew, eh)) {
-                if (e.type === 'warp') {
-                    changeRoom(e.target);
-                    p.x = e.targetX; p.y = e.targetY;
-                    gameState.target.x = e.targetX; gameState.target.y = e.targetY;
-                    return;
-                } else if (e.type === 'tree' || e.type === 'solid') {
-                    collided = true;
-                } else if (['bird','dragon','light','item_pickup','npc_grandma'].includes(e.type)) {
-                    if (e.type === 'item_pickup') {
-                        interact(e); 
-                    }
-                    collided = true;
-                }
+            if(checkRectCollide(nextX, nextY, p.w, p.h, ex, ey, ew, eh)) {
+                if(ent.type==='warp') { changeRoom(ent.target); p.x = ent.targetX; p.y = ent.targetY; gameState.target.x = ent.targetX; gameState.target.y = ent.targetY; return; }
+                else if(ent.type==='item_pickup') { interact(ent); collided=true; }
+                else collided=true;
             }
-        }
+        });
     } else {
-        const pRect = { l: nextX, r: nextX + p.w, t: nextY, b: nextY + p.h };
-        for (let e of currentRoom.entities) {
-             if (e.type === 'npc_grandma') {
-                 if (checkRectCollide(pRect.l, pRect.t, p.w, p.h, e.x-10, e.y-10, 20, 20)) {
-                     collided = true; // 需按键对话
-                 }
-             } else if (e.type === 'warp' && gameState.flags.endingPhase === 0) {
-                 if (checkRectCollide(pRect.l, pRect.t, p.w, p.h, e.x, e.y, e.w, e.h)) {
-                    changeRoom(e.target); p.x = e.targetX; p.y = e.targetY; return;
-                 }
+        rooms[gameState.room].entities.forEach(ent => {
+             if(ent.type==='warp' && gameState.flags.endingPhase===0 && checkRectCollide(nextX, nextY, p.w, p.h, ent.x, ent.y, ent.w, ent.h)) {
+                 changeRoom(ent.target); p.x = ent.targetX; p.y = ent.targetY; return;
              }
-        }
+             if(ent.type==='npc_grandma' && checkRectCollide(nextX, nextY, p.w, p.h, ent.x-10, ent.y-10, 20, 20)) collided=true;
+        });
     }
 
-    if (nextX < 0) nextX = 0; if (nextX > GAME_WIDTH - p.w) nextX = GAME_WIDTH - p.w;
-    if (nextY < 0) nextY = 0; if (nextY > GAME_HEIGHT - p.h) nextY = GAME_HEIGHT - p.h;
-
-    if (!collided) { p.x = nextX; p.y = nextY; }
-    else gameState.player.moving = false;
-
-    if (dx < 0) p.facing = 'left'; if (dx > 0) p.facing = 'right';
-    if (dy > 0) p.facing = 'down'; if (dy < 0) p.facing = 'up';
+    if(!collided) { p.x = nextX; p.y = nextY; }
+    if(dx<0) p.facing='left'; if(dx>0) p.facing='right';
     
     gameState.anim.t += 0.05;
-}
-
-function draw() {
-    if (gameState.flags.endingPhase === 1) { drawGardenScene(); return; }
-    if (gameState.flags.endingPhase === 2) { drawCabinScene(); return; }
-    if (gameState.flags.endingPhase === 3) { drawCredits(); return; }
-
-    const room = rooms[gameState.room];
-    ctx.fillStyle = room.bg;
-    ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
-
-    room.entities.forEach(e => {
-        if (e.condition && !e.condition(gameState)) return;
-        if (e.type === 'stickmen' && e.id === 'crowd_bg') drawStickmen(e.y, e.alpha);
-        else if (e.type === 'stickmen' && e.id === 'crowd_fg') return; 
-        else if (e.type === 'tree') drawTree(e.x, e.y, e.color, e.variant);
-        else if (e.type === 'moon') drawPixelCircle(e.x, e.y, 60, '#0044ff');
-        else if (e.type === 'bird') drawBird();
-        else if (e.type === 'dragon') drawDragon();
-        else if (e.type === 'item_pickup') drawItemPickup(e.x, e.y, e.color);
-        else if (e.type === 'npc_grandma') drawGrandma(e.x, e.y);
-        else if (e.type === 'warp') {
-            ctx.fillStyle = 'rgba(255,255,255,0.05)';
-            ctx.fillRect(e.x, e.y, e.w, e.h);
-        }
-        else if (e.type === 'particles') drawParticles(e.color);
-    });
-
-    drawPlayer(gameState.player.x, gameState.player.y);
-
-    room.entities.forEach(e => {
-        if (e.condition && !e.condition(gameState)) return;
-        if (e.type === 'stickmen' && e.id === 'crowd_fg') drawStickmen(e.y, e.alpha);
-    });
-
-    ctx.fillStyle = '#fff';
-    gameState.snow.forEach(s => {
-        s.y += s.speed; if(s.y > GAME_HEIGHT) s.y = 0;
-        ctx.fillRect(s.x, s.y, 1, 1);
-    });
-}
-
-// --- 场景 ---
-
-function drawGardenScene() {
-    ctx.fillStyle = '#87ceeb'; ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
-    ctx.fillStyle = '#90ee90'; ctx.fillRect(0, 120, GAME_WIDTH, GAME_HEIGHT - 120);
-    for(let i=0; i<30; i++) {
-        const fx = (i * 239) % GAME_WIDTH;
-        const fy = 130 + (i * 113) % 100;
-        const color = ['#ff69b4', '#ffff00', '#fff'].at(i%3);
-        drawPixelCircle(fx, fy, 2, color);
-    }
-    drawPixelCircle(280, 40, 20, '#ffd700');
-    drawGrandma(160, 100);
-    drawPlayer(140, 110);
-    ctx.fillStyle = '#fff';
-    const birdY = 50 + Math.sin(gameState.anim.t) * 10;
-    ctx.beginPath(); ctx.moveTo(100, birdY); ctx.lineTo(90, birdY-5); ctx.lineTo(110, birdY-5); ctx.fill();
-}
-
-function drawCabinScene() {
-    ctx.fillStyle = '#5c4033'; ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
-    ctx.fillStyle = '#111'; ctx.fillRect(100, 40, 120, 80);
-    ctx.strokeStyle = '#fff';
-    if (Math.random() > 0.95) { ctx.beginPath(); ctx.moveTo(120, 60); ctx.lineTo(180, 80); ctx.stroke(); }
-    ctx.fillStyle = '#4682b4'; ctx.fillRect(150, 140, 12, 40);
-    drawPixelCircle(156, 135, 6, '#deb887');
-    ctx.fillStyle = '#db7093'; ctx.fillRect(162, 145, 12, 35);
-    drawPixelCircle(168, 140, 6, '#deb887');
-    ctx.fillStyle = '#4682b4'; ctx.fillRect(162, 150, 4, 10);
-    ctx.fillStyle = '#db7093'; ctx.fillRect(150, 155, 4, 10);
-}
-
-function drawCredits() {
-    endingOverlay.style.transition = "opacity 2s";
-    endingOverlay.style.opacity = 0; 
-    ctx.fillStyle = '#000';
-    ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
-    ctx.fillStyle = '#fff';
-    ctx.font = '16px Courier New';
-    ctx.textAlign = 'center';
-    const t = gameState.anim.t; 
-    ctx.fillText("冬之脉", GAME_WIDTH/2, 80);
-    ctx.font = '12px Courier New';
-    ctx.fillStyle = '#888';
-    ctx.fillText("Vein of Winter", GAME_WIDTH/2, 100);
-    ctx.fillStyle = '#ccc';
-    ctx.fillText("感谢您的游玩与陪伴", GAME_WIDTH/2, 140);
-    if (t % 50 > 25) {
-        ctx.fillText("[ 刷新页面重来 ]", GAME_WIDTH/2, 200);
-    }
-}
-
-// --- 组件 ---
-
-function drawPlayer(x, y) {
-    const p = gameState.player;
-    ctx.fillStyle = '#fff'; ctx.fillRect(x, y, p.w, p.h);
-    ctx.fillStyle = '#d00'; ctx.fillRect(x-2, y+4, p.w+4, 3);
-    if(p.facing === 'left') ctx.fillRect(x-2, y+4, 2, 6); else ctx.fillRect(x+p.w, y+4, 2, 6);
-    ctx.fillStyle = '#000';
-    if(p.facing === 'left') ctx.fillRect(x+2, y+3, 1, 1); else ctx.fillRect(x+5, y+3, 1, 1);
-}
-
-function drawGrandma(x, y) {
-    ctx.fillStyle = '#888'; ctx.fillRect(x-5, y, 10, 16);
-    drawPixelCircle(x, y-2, 6, '#f0d0b0');
-    ctx.fillStyle = '#eee'; ctx.fillRect(x-6, y-8, 12, 4);
-}
-
-function drawItemPickup(x, y, color) {
-    const t = gameState.anim.t;
-    const alpha = 0.5 + Math.sin(t * 5) * 0.3;
-    ctx.fillStyle = color; ctx.globalAlpha = alpha;
-    ctx.beginPath(); 
-    if (color === '#aaf') {
-        ctx.moveTo(x, y-8); ctx.bezierCurveTo(x-4, y, x-4, y+6, x, y+6); ctx.bezierCurveTo(x+4, y+6, x+4, y, x, y-8);
-    } else {
-        ctx.moveTo(x, y-8); ctx.lineTo(x+6, y+4); ctx.lineTo(x-6, y+4); 
-    }
-    ctx.fill(); ctx.globalAlpha = 1.0; ctx.fillStyle = '#fff'; ctx.fillRect(x-1, y-1, 2, 2);
-}
-
-function drawParticles(color) {
-    ctx.fillStyle = color;
-    for(let i=0; i<10; i++) {
-        let x = (Math.sin(gameState.anim.t + i) * GAME_WIDTH/2) + GAME_WIDTH/2;
-        let y = (Math.cos(gameState.anim.t * 0.5 + i) * GAME_HEIGHT/2) + GAME_HEIGHT/2;
-        ctx.fillRect(x, y, 2, 2);
-    }
-}
-
-function drawStickmen(yBase, alpha) {
-    ctx.save(); ctx.globalAlpha = alpha; ctx.strokeStyle = '#0044ff'; ctx.lineWidth = 2;
-    const spacing = 40;
-    for (let i = 0; i < 10; i++) {
-        const x = i * spacing - 10;
-        const y = yBase + Math.sin(Date.now() / 500 + i) * 2;
-        ctx.beginPath(); ctx.arc(x, y - 20, 8, 0, Math.PI * 2);
-        ctx.moveTo(x, y - 12); ctx.lineTo(x, y + 10);
-        ctx.moveTo(x, y - 5); ctx.lineTo(x - 20, y); ctx.moveTo(x, y - 5); ctx.lineTo(x + 20, y);
-        ctx.moveTo(x, y + 10); ctx.lineTo(x - 8, y + 25); ctx.moveTo(x, y + 10); ctx.lineTo(x + 8, y + 25);
-        ctx.stroke();
-    }
-    ctx.restore();
-}
-
-function drawTree(x, y, color, variant) {
-    ctx.save(); ctx.fillStyle = color;
-    if (variant === 'melt') {
-        ctx.beginPath(); ctx.moveTo(x-10, y+100); ctx.bezierCurveTo(x-20, y+80, x-5, y+50, x, y);
-        ctx.bezierCurveTo(x+5, y+50, x+20, y+80, x+10, y+100); ctx.fill();
-        drawPixelCircle(x, y-20, 30, color);
-    } else if (variant === 'drip') {
-        ctx.fillRect(x-2, y, 4, 100); ctx.fillRect(x-20, y+20, 40, 2);
-        ctx.strokeStyle = color; ctx.strokeRect(x-18, y+22, 10, 15); ctx.strokeRect(x+8, y+22, 10, 15);
-    } else if (variant === 'spike') {
-        ctx.beginPath(); ctx.moveTo(x, y+100); ctx.lineTo(x-10, y+80); ctx.lineTo(x+15, y+60);
-        ctx.lineTo(x-5, y+40); ctx.lineTo(x, y); ctx.lineTo(x+5, y+40); ctx.lineTo(x-15, y+60);
-        ctx.lineTo(x+10, y+80); ctx.fill();
-    } else { 
-        ctx.fillRect(x - 8, y - 100, 16, 100); 
-        ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.beginPath();
-        ctx.moveTo(x - 8, y - 60); ctx.bezierCurveTo(x - 30, y - 80, x - 60, y - 120, x - 80, y - 160);
-        ctx.moveTo(x + 8, y - 50); ctx.bezierCurveTo(x + 30, y - 80, x + 80, y - 100, x + 100, y - 150);
-        ctx.moveTo(x, y - 80); ctx.bezierCurveTo(x - 10, y - 120, x + 10, y - 140, x, y - 180);
-        ctx.stroke();
-        drawPixelCircle(x-20, y-110, 4, '#fff'); drawPixelCircle(x+30, y-130, 3, '#fff');
-        ctx.fillStyle = color; ctx.fillRect(x - 12, y - 10, 24, 10);
-    }
-    ctx.restore();
-}
-
-function drawDragon() {
-    const d = gameState.anim.dragon;
-    const t = gameState.anim.t;
-    let headX = (Date.now() / 20) % (GAME_WIDTH + 400) - 200;
-    for(let i=0; i<d.length; i++) {
-        let segX = headX - i * 15;
-        let segY = 60 + Math.sin(t - i*0.2) * 30;
-        if(segX > -50 && segX < GAME_WIDTH + 50) {
-            drawPixelCircle(segX, segY, 6, i%2?'#ff1493':'#ff69b4');
-        }
-    }
-    if(headX > -50 && headX < GAME_WIDTH + 50) {
-        drawPixelCircle(headX, 60+Math.sin(t)*30, 10, '#fff');
-    }
-}
-
-function drawBird() {
-    const b = gameState.anim.bird;
-    ctx.fillStyle = '#d00'; ctx.beginPath(); ctx.moveTo(b.x, b.y); ctx.lineTo(b.x-10, b.y-5);
-    ctx.lineTo(b.x+10, b.y-5); ctx.lineTo(b.x, b.y+15); ctx.fill();
-}
-
-function drawPixelCircle(cx, cy, r, color) {
-    ctx.fillStyle = color; ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI*2); ctx.fill();
 }
 
 function checkRectCollide(x1, y1, w1, h1, x2, y2, w2, h2) {
@@ -909,138 +745,194 @@ function checkInteraction() {
     const p = gameState.player;
     const reach = 25;
     let checkX = p.x, checkY = p.y;
-    if(p.facing === 'left') checkX -= reach; if(p.facing === 'right') checkX += reach;
-    if(p.facing === 'up') checkY -= reach; if(p.facing === 'down') checkY += reach;
+    if(p.facing==='left') checkX -= reach; if(p.facing==='right') checkX += reach;
+    if(p.facing==='up') checkY -= reach; if(p.facing==='down') checkY += reach;
 
-    const currentRoom = rooms[gameState.room];
-    for(let e of currentRoom.entities) {
-        if (e.condition && !e.condition(gameState)) continue;
-        
-        let ex = e.x, ey = e.y, ew = e.w || 20, eh = e.h || 20;
-        if (e.type === 'tree' && e.variant === 'vein') { ex = e.x - ew/2; ey = e.y - eh; } 
-        if (e.type === 'npc_grandma') { ex = e.x - 10; ey = e.y - 10; ew = 20; eh = 20; }
-
-        if(checkRectCollide(checkX, checkY, 1, 1, ex - 10, ey - 10, ew+20, eh+20)) {
-            interact(e);
-            return;
-        }
-    }
+    rooms[gameState.room].entities.forEach(ent => {
+        if(ent.condition && !ent.condition(gameState)) return;
+        let ex=ent.x, ey=ent.y, ew=ent.w||20, eh=ent.h||20;
+        if(ent.type==='tree' && ent.variant==='vein') { ex=ent.x-ew/2; ey=ent.y-eh; }
+        if(ent.type==='npc_grandma') { ex=ent.x-10; ey=ent.y-10; }
+        if(checkRectCollide(checkX, checkY, 1, 1, ex-10, ey-10, ew+20, eh+20)) interact(ent);
+    });
 }
 
-function interact(e) {
-    if (e.logic) {
-        const result = e.logic(gameState);
-        if (Array.isArray(result)) startDialogue(result);
-        else startDialogue(e.interaction); 
-    } else if (e.interaction) {
-        startDialogue(e.interaction);
-    }
+function interact(ent) {
+    let content = ent.logic ? ent.logic(gameState) : ent.interaction;
+    if(content) startDialogue(content);
 }
 
 function startDialogue(lines) {
     gameState.dialogue.active = true;
     gameState.dialogue.queue = [];
     gameState.dialogue.callback = null;
-    AudioSys.playSFX('text');
-
-    lines.forEach(line => {
-        if (typeof line === 'string') gameState.dialogue.queue.push(line);
-        else if (typeof line === 'object' && line.action) gameState.dialogue.callback = line.action;
-    });
+    uiDialogue.style.display = 'block';
     
-    uiLayer.style.display = 'block';
+    if(Array.isArray(lines)) {
+        lines.forEach(l => {
+            if(typeof l === 'string') gameState.dialogue.queue.push(l);
+            else if(l.action) gameState.dialogue.callback = l.action;
+        });
+    } else gameState.dialogue.queue.push(lines);
+    
     nextDialogueLine();
 }
 
 function nextDialogueLine() {
-    if (gameState.dialogue.queue.length === 0) {
+    if(gameState.dialogue.queue.length === 0) {
         gameState.dialogue.active = false;
-        uiLayer.style.display = 'none';
-        if (gameState.dialogue.callback) {
-            handleAction(gameState.dialogue.callback);
-        }
+        uiDialogue.style.display = 'none';
+        if(gameState.dialogue.callback) handleAction(gameState.dialogue.callback);
         return;
     }
-    const line = gameState.dialogue.queue.shift();
-    uiText.innerText = "";
+    const txt = gameState.dialogue.queue.shift();
+    uiDialogue.innerText = "";
     let i = 0;
-    const interval = setInterval(() => {
-        uiText.innerText += line.charAt(i);
-        AudioSys.playSFX('text');
+    const timer = setInterval(() => {
+        uiDialogue.innerText += txt.charAt(i);
+        if(i%2===0) AudioSys.playSFX('text');
         i++;
-        if (i >= line.length) clearInterval(interval);
+        if(i >= txt.length) clearInterval(timer);
     }, 30);
 }
 
-function setupInput() {
-    window.addEventListener('keydown', (e) => {
-        if (gameState.dialogue.active) {
-            if (e.code === 'Space' || e.code === 'Enter') nextDialogueLine();
-            return;
-        }
-        switch(e.key.toLowerCase()) {
-            case 'w': case 'arrowup': gameState.input.up = true; break;
-            case 's': case 'arrowdown': gameState.input.down = true; break;
-            case 'a': case 'arrowleft': gameState.input.left = true; break;
-            case 'd': case 'arrowright': gameState.input.right = true; break;
-            case ' ': case 'enter': checkInteraction(); break;
-        }
-    });
-    window.addEventListener('keyup', (e) => {
-        switch(e.key.toLowerCase()) {
-            case 'w': case 'arrowup': gameState.input.up = false; break;
-            case 's': case 'arrowdown': gameState.input.down = false; break;
-            case 'a': case 'arrowleft': gameState.input.left = false; break;
-            case 'd': case 'arrowright': gameState.input.right = false; break;
-        }
-    });
-    // 鼠标点击作为辅助移动，仅当不在移动端显示控制时，或者点击位置不在控制区
-    canvas.addEventListener('pointerdown', (e) => {
-        if (gameState.dialogue.active) { nextDialogueLine(); return; }
-        
-        // 如果是触摸设备且显示了控制，这里不处理点击移动（依靠手把）
-        // 除非点击的是对话框或非UI区域
-        const isMobile = mobileControls.classList.contains('visible');
-        if (isMobile) return; 
+function draw() {
+    if(gameState.flags.endingPhase === 1) { drawGarden(); return; }
+    if(gameState.flags.endingPhase === 2) { drawCabin(); return; }
+    if(gameState.flags.endingPhase === 3) { drawCredits(); return; }
 
-        const rect = canvas.getBoundingClientRect();
-        // 计算缩放比例
-        const scaleX = GAME_WIDTH / rect.width;
-        const scaleY = GAME_HEIGHT / rect.height;
-        
-        const clickX = (e.clientX - rect.left) * scaleX;
-        const clickY = (e.clientY - rect.top) * scaleY;
-        
-        let clickedEntity = false;
-        if (gameState.flags.endingPhase === 0) {
-            const currentRoom = rooms[gameState.room];
-            for(let e of currentRoom.entities) {
-                 if (e.condition && !e.condition(gameState)) continue;
-                 let ex = e.x, ey = e.y, ew = e.w || 20, eh = e.h || 20;
-                 if (e.type === 'tree' && e.variant === 'vein') { ex = e.x - ew/2; ey = e.y - eh; }
-                 if (e.type === 'npc_grandma') { ex = e.x - 10; ey = e.y - 10; }
-    
-                 if (checkRectCollide(clickX, clickY, 1, 1, ex - 20, ey - 20, ew+40, eh+40)) {
-                     interact(e); clickedEntity = true; break;
-                 }
-            }
-        }
+    const room = rooms[gameState.room];
+    ctx.fillStyle = room.bg;
+    ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
 
-        if(!clickedEntity && gameState.flags.endingPhase === 0) {
-            gameState.target.x = clickX - gameState.player.w/2;
-            gameState.target.y = clickY - gameState.player.h/2;
-            gameState.player.moving = true;
-        }
+    room.entities.forEach(e => {
+        if(e.condition && !e.condition(gameState)) return;
+        if(e.type === 'stickmen') {
+            if(e.id === 'crowd_bg') drawStickmen(e.y, e.alpha);
+        } else if(e.type === 'tree') drawTree(e.x, e.y, e.color, e.variant);
+        else if(e.type === 'moon') drawMoon(e.x, e.y);
+        else if(e.type === 'bird') drawBird();
+        else if(e.type === 'dragon') drawDragon();
+        else if(e.type === 'item_pickup') drawItem(e.x, e.y, e.color);
+        else if(e.type === 'npc_grandma') drawGrandma(e.x, e.y);
+        else if(e.type === 'warp') { ctx.fillStyle='rgba(255,255,255,0.05)'; ctx.fillRect(e.x, e.y, e.w, e.h); }
+        else if(e.type === 'particles') drawParticles(e.color);
+    });
+
+    drawPlayer(gameState.player.x, gameState.player.y);
+
+    room.entities.forEach(e => {
+        if(e.condition && !e.condition(gameState)) return;
+        if(e.type === 'stickmen' && e.id === 'crowd_fg') drawStickmen(e.y, e.alpha);
+    });
+
+    ctx.fillStyle = '#fff';
+    gameState.snow.forEach(s => {
+        s.y += s.speed; if(s.y > GAME_HEIGHT) s.y = 0;
+        ctx.fillRect(s.x, s.y, 1, 1);
     });
 }
 
-init();
+// --- Draw Helpers ---
+function circle(x, y, r, c) { ctx.fillStyle=c; ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI*2); ctx.fill(); }
+function drawPlayer(x, y) {
+    const p = gameState.player; if(!p.visible) return;
+    ctx.fillStyle='#fff'; ctx.fillRect(x,y,p.w,p.h);
+    ctx.fillStyle='#d00'; ctx.fillRect(x-2,y+4,p.w+4,3);
+    if(p.facing==='left') ctx.fillRect(x-2,y+4,2,6); else ctx.fillRect(x+p.w,y+4,2,6);
+    ctx.fillStyle='#000';
+    if(p.facing==='left') ctx.fillRect(x+2,y+3,1,1); else ctx.fillRect(x+5,y+3,1,1);
+}
+function drawTree(x,y,c,v) {
+    ctx.save(); ctx.fillStyle=c;
+    if(v==='vein') {
+        ctx.fillRect(x-8,y-100,16,100); ctx.strokeStyle=c; ctx.lineWidth=2; ctx.beginPath();
+        ctx.moveTo(x-8,y-60); ctx.bezierCurveTo(x-30,y-80,x-60,y-120,x-80,y-160);
+        ctx.moveTo(x+8,y-50); ctx.bezierCurveTo(x+30,y-80,x+80,y-100,x+100,y-150);
+        ctx.moveTo(x,y-80); ctx.bezierCurveTo(x-10,y-120,x+10,y-140,x,y-180); ctx.stroke();
+        circle(x-20,y-110,4,'#fff'); circle(x+30,y-130,3,'#fff');
+        ctx.fillStyle=c; ctx.fillRect(x-12,y-10,24,10);
+    } else if(v==='melt') {
+        ctx.beginPath(); ctx.moveTo(x-10,y+100); ctx.bezierCurveTo(x-20,y+80,x-5,y+50,x,y);
+        ctx.bezierCurveTo(x+5,y+50,x+20,y+80,x+10,y+100); ctx.fill(); circle(x,y-20,30,c);
+    } else if(v==='drip') {
+        ctx.fillRect(x-2,y,4,100); ctx.fillRect(x-20,y+20,40,2); ctx.strokeStyle=c;
+        ctx.strokeRect(x-18,y+22,10,15); ctx.strokeRect(x+8,y+22,10,15);
+    } else if(v==='spike') {
+        ctx.beginPath(); ctx.moveTo(x,y+100); ctx.lineTo(x-10,y+80); ctx.lineTo(x+15,y+60);
+        ctx.lineTo(x-5,y+40); ctx.lineTo(x,y); ctx.lineTo(x+5,y+40); ctx.lineTo(x-15,y+60);
+        ctx.lineTo(x+10,y+80); ctx.fill();
+    }
+    ctx.restore();
+}
+function drawMoon(x,y) { circle(x,y,60,'#0044ff'); }
+function drawStickmen(yb, a) {
+    ctx.save(); ctx.globalAlpha=a; ctx.strokeStyle='#0044ff'; ctx.lineWidth=2;
+    for(let i=0;i<10;i++){
+        let x=i*40-10, y=yb+Math.sin(Date.now()/500+i)*2;
+        ctx.beginPath(); ctx.arc(x,y-20,8,0,6.28); ctx.moveTo(x,y-12); ctx.lineTo(x,y+10);
+        ctx.moveTo(x,y-5); ctx.lineTo(x-20,y); ctx.moveTo(x,y-5); ctx.lineTo(x+20,y);
+        ctx.moveTo(x,y+10); ctx.lineTo(x-8,y+25); ctx.moveTo(x,y+10); ctx.lineTo(x+8,y+25); ctx.stroke();
+    } ctx.restore();
+}
+function drawItem(x,y,c) {
+    ctx.save(); const t=gameState.anim.t; ctx.globalAlpha=0.5+Math.sin(t*5)*0.3; ctx.fillStyle=c;
+    ctx.beginPath();
+    if(c==='#aaf'){ ctx.moveTo(x,y-8); ctx.bezierCurveTo(x-4,y,x-4,y+6,x,y+6); ctx.bezierCurveTo(x+4,y+6,x+4,y,x,y-8); }
+    else { ctx.moveTo(x,y-8); ctx.lineTo(x+6,y+4); ctx.lineTo(x-6,y+4); }
+    ctx.fill(); ctx.fillStyle='#fff'; ctx.fillRect(x-1,y-1,2,2); ctx.restore();
+}
+function drawDragon() {
+    const t=gameState.anim.t; let hx=(Date.now()/20)%(GAME_WIDTH+400)-200;
+    for(let i=0;i<20;i++){
+        let sx=hx-i*15, sy=60+Math.sin(t-i*0.2)*30;
+        if(sx>-50 && sx<GAME_WIDTH+50) circle(sx,sy,6,i%2?'#ff1493':'#ff69b4');
+    } circle(hx,60+Math.sin(t)*30,10,'#fff');
+}
+function drawBird() {
+    const b=gameState.anim.bird; ctx.fillStyle='#d00';
+    ctx.beginPath(); ctx.moveTo(b.x,b.y); ctx.lineTo(b.x-10,b.y-5); ctx.lineTo(b.x+10,b.y-5); ctx.lineTo(b.x,b.y+15); ctx.fill();
+}
+function drawGrandma(x,y) {
+    ctx.fillStyle='#888'; ctx.fillRect(x-5,y,10,16); circle(x,y-2,6,'#f0d0b0'); ctx.fillStyle='#eee'; ctx.fillRect(x-6,y-8,12,4);
+}
+function drawParticles(c) {
+    ctx.fillStyle=c; for(let i=0;i<10;i++) ctx.fillRect((Math.sin(gameState.anim.t+i)*160)+160,(Math.cos(gameState.anim.t*0.5+i)*120)+120,2,2);
+}
+
+function drawGarden() {
+    ctx.fillStyle='#87ceeb'; ctx.fillRect(0,0,GAME_WIDTH,GAME_HEIGHT);
+    ctx.fillStyle='#90ee90'; ctx.fillRect(0,120,GAME_WIDTH,120);
+    for(let i=0;i<30;i++) circle((i*239)%GAME_WIDTH, 130+(i*113)%100, 2, ['#ff69b4','#ffff00','#fff'][i%3]);
+    circle(280,40,20,'#ffd700'); drawGrandma(160,100); drawPlayer(140,110);
+    ctx.fillStyle='#fff'; let by=50+Math.sin(gameState.anim.t)*10; 
+    ctx.beginPath(); ctx.moveTo(100,by); ctx.lineTo(90,by-5); ctx.lineTo(110,by-5); ctx.fill();
+}
+function drawCabin() {
+    ctx.fillStyle='#5c4033'; ctx.fillRect(0,0,GAME_WIDTH,GAME_HEIGHT);
+    ctx.fillStyle='#111'; ctx.fillRect(100,40,120,80);
+    ctx.strokeStyle='#fff'; if(Math.random()>0.95) { ctx.beginPath(); ctx.moveTo(120,60); ctx.lineTo(180,80); ctx.stroke(); }
+    ctx.fillStyle='#4682b4'; ctx.fillRect(150,140,12,40); circle(156,135,6,'#deb887');
+    ctx.fillStyle='#db7093'; ctx.fillRect(162,145,12,35); circle(168,140,6,'#deb887');
+    ctx.fillStyle='#4682b4'; ctx.fillRect(162,150,4,10); ctx.fillStyle='#db7093'; ctx.fillRect(150,155,4,10);
+}
+function drawCredits() {
+    document.getElementById('ending-overlay').style.opacity=0;
+    ctx.fillStyle='#000'; ctx.fillRect(0,0,GAME_WIDTH,GAME_HEIGHT);
+    ctx.fillStyle='#fff'; ctx.font='16px Courier New'; ctx.textAlign='center';
+    ctx.fillText(t('dialogue','credits')[0], GAME_WIDTH/2, 80);
+    ctx.fillStyle='#888'; ctx.font='12px Courier New'; ctx.fillText("Vein of Winter", GAME_WIDTH/2, 100);
+    ctx.fillStyle='#ccc'; ctx.fillText(t('dialogue','credits')[1], GAME_WIDTH/2, 140);
+    if(gameState.anim.t%50>25) ctx.fillText(t('dialogue','credits')[2], GAME_WIDTH/2, 200);
+}
 
 function gameLoop() {
     update();
     draw();
     requestAnimationFrame(gameLoop);
 }
+
+init();
 </script>
 </body>
 </html>
