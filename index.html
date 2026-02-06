@@ -25,30 +25,39 @@
 
         #game-wrapper {
             position: relative;
-            width: 100%;
-            height: 100%;
+            /* 电脑端：限制最大尺寸，保持小巧精致 */
+            width: 640px; 
+            height: 480px;
             display: flex;
             justify-content: center;
             align-items: center;
             background: #111;
+            border: 1px solid #333; /* 加个小边框增加精致感 */
+            box-shadow: 0 0 40px rgba(0,0,0,0.5);
+        }
+
+        /* 手机端适配：覆盖上面的固定尺寸 */
+        @media (max-width: 800px) {
+            #game-wrapper {
+                width: 100%;
+                height: 100%;
+                border: none;
+            }
+            
+            #canvas-container {
+                width: 100%;
+                height: auto;
+                max-height: 60vh; /* 留出空间给按键 */
+                aspect-ratio: 4/3;
+            }
         }
 
         #canvas-container {
             position: relative;
-            aspect-ratio: 4/3;
-            height: 85vh; 
-            max-width: 100%;
+            width: 100%;
+            height: 100%;
             background: #000;
-            box-shadow: 0 0 50px rgba(0,0,0,0.8);
-            z-index: 10;
-        }
-
-        @media (max-width: 800px) {
-            #canvas-container {
-                width: 100%;
-                height: auto;
-                max-height: 60vh;
-            }
+            overflow: hidden;
         }
 
         canvas {
@@ -56,7 +65,6 @@
             width: 100%;
             height: 100%;
             display: block;
-            transition: filter 2s ease;
         }
 
         .scanlines {
@@ -75,19 +83,20 @@
             z-index: 20;
         }
 
+        /* 物品栏 */
         #inventory {
             position: absolute;
-            top: 15px; right: 15px;
+            top: 10px; right: 10px;
             display: flex; flex-direction: column; gap: 5px;
             align-items: flex-end;
         }
         .inv-row { display: flex; gap: 5px; }
         .item {
-            width: 24px; height: 24px;
+            width: 20px; height: 20px;
             background: rgba(0,0,0,0.6);
             border: 1px solid #444;
             display: flex; justify-content: center; align-items: center;
-            font-size: 14px; opacity: 0.2;
+            font-size: 12px; opacity: 0.2;
             border-radius: 4px; transition: opacity 0.5s;
         }
         .item.collected { opacity: 1; border-color: #fff; box-shadow: 0 0 5px rgba(255,255,255,0.5); }
@@ -97,15 +106,16 @@
             position: absolute;
             bottom: 20px;
             left: 50%; transform: translateX(-50%);
-            width: 85%;
+            width: 90%;
             background: rgba(0,0,0,0.9);
             border: 1px solid #fff;
-            padding: 12px;
+            padding: 10px;
             font-size: 14px;
-            line-height: 1.6;
+            line-height: 1.5;
             display: none;
             pointer-events: auto;
             box-shadow: 0 0 15px rgba(0,0,0,0.8);
+            text-align: left;
         }
 
         #ending-overlay {
@@ -118,30 +128,24 @@
             transition: opacity 3s;
         }
 
-        /* --- 掌机模式控制 (强制最高层级) --- */
+        /* --- 掌机模式控制 --- */
         #mobile-controls {
             display: none;
-            position: absolute;
+            position: fixed; /* 固定在屏幕，不受容器限制 */
             top: 0; left: 0; width: 100%; height: 100%;
             z-index: 999;
             pointer-events: none;
         }
         
-        /* 只要是触摸设备就强制显示 */
-        @media (pointer: coarse) {
-            #mobile-controls { display: flex !important; justify-content: space-between; align-items: flex-end; }
-            #dialogue-box { bottom: 40% !important; }
-        }
-        
-        #mobile-controls.visible { display: flex !important; justify-content: space-between; align-items: flex-end; }
+        #mobile-controls.visible { display: flex !important; justify-content: space-between; align-items: flex-end; padding-bottom: 20px; box-sizing: border-box; }
 
-        .control-side { width: 160px; height: 100%; pointer-events: auto; position: relative; }
-        .dpad-cross { position: absolute; bottom: 40px; left: 30px; width: 140px; height: 140px; }
-        .action-btn-area { position: absolute; bottom: 60px; right: 40px; width: 90px; height: 90px; }
+        .control-side { width: 150px; height: 150px; pointer-events: auto; position: relative; }
+        .dpad-cross { position: absolute; bottom: 20px; left: 20px; width: 140px; height: 140px; }
+        .action-btn-area { position: absolute; bottom: 40px; right: 40px; width: 80px; height: 80px; }
         
         .touch-btn { 
             position: absolute; 
-            background: rgba(255, 255, 255, 0.15); 
+            background: rgba(255, 255, 255, 0.1); 
             border: 1px solid rgba(255, 255, 255, 0.3); 
             backdrop-filter: blur(4px); 
             touch-action: none; 
@@ -153,10 +157,11 @@
         .d-left { top: 34%; left: 0; width: 34%; height: 32%; border-radius: 6px 0 0 6px; }
         .d-right { top: 34%; right: 0; width: 34%; height: 32%; border-radius: 0 6px 6px 0; }
         
-        .btn-a { width: 80px; height: 80px; border-radius: 50%; background: rgba(255, 255, 255, 0.15); border: 2px solid rgba(255, 255, 255, 0.4); color: #fff; font-size: 24px; font-weight: bold; display: flex; justify-content: center; align-items: center; }
+        .btn-a { width: 100%; height: 100%; border-radius: 50%; background: rgba(255, 255, 255, 0.15); border: 2px solid rgba(255, 255, 255, 0.4); color: #fff; font-size: 24px; font-weight: bold; display: flex; justify-content: center; align-items: center; }
 
+        /* 开始画面 */
         #start-screen { 
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%; 
             background: rgba(0,0,0,0.95); 
             z-index: 1000; 
             display: flex; flex-direction: column; justify-content: center; align-items: center; 
@@ -166,24 +171,18 @@
         .lang-select { display: flex; gap: 20px; margin-top: 40px; pointer-events: auto; }
         .lang-btn { 
             background: rgba(0,0,0,0.8); border: 1px solid #555; color: #aaa; 
-            padding: 15px 30px; font-family: inherit; cursor: pointer; 
-            transition: 0.3s; font-size: 16px; touch-action: manipulation; 
+            padding: 10px 20px; font-family: inherit; cursor: pointer; 
+            transition: 0.3s; font-size: 14px; touch-action: manipulation; 
         }
         .lang-btn:hover, .lang-btn:active { border-color: #fff; color: #fff; background: rgba(255,255,255,0.2); }
         h1 { font-weight: normal; letter-spacing: 4px; margin-bottom: 5px; }
         h2 { font-weight: normal; font-size: 14px; color: #999; letter-spacing: 2px; }
-        .room-title { position: absolute; bottom: 15px; left: 15px; color: rgba(255, 255, 255, 0.4); font-size: 12px; text-shadow: 1px 1px 0 #000; }
+        .room-title { position: absolute; bottom: 10px; left: 10px; color: rgba(255, 255, 255, 0.4); font-size: 12px; text-shadow: 1px 1px 0 #000; }
     </style>
 </head>
 <body>
 
 <div id="game-wrapper">
-    <div id="mobile-controls">
-        <div class="control-side"><div class="dpad-cross"><div class="touch-btn d-up" data-key="up"></div><div class="touch-btn d-left" data-key="left"></div><div class="touch-btn d-right" data-key="right"></div><div class="touch-btn d-down" data-key="down"></div></div></div>
-        <div style="flex: 1;"></div>
-        <div class="control-side"><div class="action-btn-area"><div class="touch-btn btn-a" data-key="action">A</div></div></div>
-    </div>
-
     <div id="canvas-container">
         <canvas id="gameCanvas" width="320" height="240"></canvas>
         <div class="scanlines"></div>
@@ -204,26 +203,35 @@
             <div id="dialogue-box"></div>
             <div id="ending-overlay"></div>
         </div>
+        
+        <div id="start-screen">
+            <h1>冬之脉</h1>
+            <h2>Vein of Winter</h2>
+            <div class="lang-select">
+                <button class="lang-btn" id="btn-cn">中文</button>
+                <button class="lang-btn" id="btn-en">English</button>
+                <button class="lang-btn" id="btn-jp">日本語</button>
+            </div>
+            <p style="margin-top:30px; font-size: 12px; color: #444;">Headphones Recommended</p>
+        </div>
     </div>
 </div>
 
-<div id="start-screen">
-    <h1>冬之脉</h1>
-    <h2>Vein of Winter</h2>
-    <div class="lang-select">
-        <button class="lang-btn" onclick="startGame('CN')">中文</button>
-        <button class="lang-btn" onclick="startGame('EN')">English</button>
-        <button class="lang-btn" onclick="startGame('JP')">日本語</button>
-    </div>
-    <p style="margin-top:30px; font-size: 12px; color: #444;">Headphones Recommended</p>
+<!-- 放在 wrapper 外面，保证覆盖全屏 -->
+<div id="mobile-controls">
+    <div class="control-side"><div class="dpad-cross"><div class="touch-btn d-up" data-key="up"></div><div class="touch-btn d-left" data-key="left"></div><div class="touch-btn d-right" data-key="right"></div><div class="touch-btn d-down" data-key="down"></div></div></div>
+    <div style="flex: 1;"></div>
+    <div class="control-side"><div class="action-btn-area"><div class="touch-btn btn-a" data-key="action">A</div></div></div>
 </div>
 
 <script>
-// --- 1. CORE VARIABLES ---
+// --- 1. CORE & GLOBAL VARIABLES ---
+// Defined at top level to avoid ReferenceErrors
 const GAME_WIDTH = 320;
 const GAME_HEIGHT = 240;
 const SPEED = 2;
 let canvas, ctx, uiDialogue, roomNameEl, endingOverlay, invRow1, invRow2;
+let startScreen;
 const invItems = {}; 
 
 // --- 2. GAME STATE ---
@@ -315,12 +323,7 @@ const TEXT = {
     }
 };
 
-// --- 4. UTILS & AUDIO ---
-function t(key, subkey) {
-    if (subkey) return TEXT[gameState.lang] ? TEXT[gameState.lang][key][subkey] : "";
-    return TEXT[gameState.lang][key];
-}
-
+// --- 5. AUDIO ---
 const AudioSys = {
     ctx: null, masterGain: null, isPlaying: false,
     notes: [220, 261.63, 329.63, 196.00, 246.94, 293.66], 
@@ -333,7 +336,7 @@ const AudioSys = {
             this.masterGain.connect(this.ctx.destination);
         }
         if (this.ctx.state === 'suspended') this.ctx.resume();
-        this.playTone(440, 'sine', 0.1, 0.001);
+        this.playTone(440, 'sine', 0.1, 0.001); // unlock
         if (!this.isPlaying) { this.isPlaying = true; this.scheduleNextNote(); }
     },
     playTone: function(freq, type='sine', duration=0.5, vol=0.1) {
@@ -377,7 +380,14 @@ const AudioSys = {
     }
 };
 
-// --- 5. LOGIC FUNCTIONS (Moved up to be available globally) ---
+// --- 6. LOGIC & FUNCTIONS ---
+
+function t(key, subkey) {
+    if (subkey) return TEXT[gameState.lang] ? TEXT[gameState.lang][key][subkey] : "";
+    return TEXT[gameState.lang][key];
+}
+
+// *** DEFINING THESE BEFORE USE ***
 function checkRectCollide(x1, y1, w1, h1, x2, y2, w2, h2) {
     return x2 < x1 + w1 && x2 + w2 > x1 && y2 < y1 + h1 && y2 + h2 > y1;
 }
@@ -421,23 +431,7 @@ function interact(ent) {
     if(content) startDialogue(content);
 }
 
-function checkInteraction() {
-    const p = gameState.player;
-    const reach = 25;
-    let checkX = p.x, checkY = p.y;
-    if(p.facing==='left') checkX -= reach; if(p.facing==='right') checkX += reach;
-    if(p.facing==='up') checkY -= reach; if(p.facing==='down') checkY += reach;
-
-    rooms[gameState.room].entities.forEach(ent => {
-        if(ent.condition && !ent.condition(gameState)) return;
-        let ex=ent.x, ey=ent.y, ew=ent.w||20, eh=ent.h||20;
-        if(ent.type==='tree') { ex=ent.x-ew/2; ey=ent.y-eh; }
-        if(ent.type==='npc_grandma' || ent.type==='prop_extra' || ent.type==='item_pickup') { ex=ent.x-10; ey=ent.y-10; }
-        if(checkRectCollide(checkX, checkY, 1, 1, ex-10, ey-10, ew+20, eh+20)) interact(ent);
-    });
-}
-
-// --- 6. ROOMS DATA ---
+// --- 7. ROOMS DATA ---
 const rooms = {
     'center': {
         nameKey: 'center', bg: '#050505',
@@ -536,23 +530,41 @@ const rooms = {
     }
 };
 
-// --- 7. MAIN FUNCTIONS ---
+// --- 8. MORE FUNCTIONS (Check Interaction need to access Rooms) ---
+function checkInteraction() {
+    const p = gameState.player;
+    const reach = 25;
+    let checkX = p.x, checkY = p.y;
+    if(p.facing==='left') checkX -= reach; if(p.facing==='right') checkX += reach;
+    if(p.facing==='up') checkY -= reach; if(p.facing==='down') checkY += reach;
+
+    rooms[gameState.room].entities.forEach(ent => {
+        if(ent.condition && !ent.condition(gameState)) return;
+        let ex=ent.x, ey=ent.y, ew=ent.w||20, eh=ent.h||20;
+        if(ent.type==='tree') { ex=ent.x-ew/2; ey=ent.y-eh; }
+        if(ent.type==='npc_grandma' || ent.type==='prop_extra' || ent.type==='item_pickup') { ex=ent.x-10; ey=ent.y-10; }
+        if(checkRectCollide(checkX, checkY, 1, 1, ex-10, ey-10, ew+20, eh+20)) interact(ent);
+    });
+}
 
 function startGame(lang) {
     try {
         gameState.lang = lang;
         AudioSys.init();
         document.getElementById('start-screen').style.display = 'none';
+        
         if ('ontouchstart' in window || navigator.maxTouchPoints > 0) {
             document.getElementById('mobile-controls').classList.add('visible');
             document.getElementById('dialogue-box').style.bottom = '40%';
         }
+        
         invItems.drawing.title = t('items', 'drawing');
         invItems.wheelchair.title = t('items', 'wheelchair');
         invItems.hourglass.title = t('items', 'hourglass');
         invItems.candy.title = t('items', 'candy');
         invItems.tear.title = t('items', 'tear');
         invItems.watch.title = t('items', 'watch');
+        
         updateRoomName();
     } catch (e) { console.error(e); }
 }
@@ -729,8 +741,11 @@ function handleAction(act) {
     }
 }
 
+// --- UPDATE & DRAW ---
+
 function update() {
     if(gameState.dialogue.active || gameState.flags.endingPhase >= 2) return;
+
     if (gameState.transition.active) {
         gameState.transition.timer += 0.05;
         if (gameState.transition.timer >= 1.0 && gameState.transition.nextRoom) {
@@ -744,12 +759,14 @@ function update() {
         if (gameState.transition.timer >= 2.0) gameState.transition.active = false;
         return;
     }
+    
     const p = gameState.player;
     let dx = 0, dy = 0;
     if(gameState.input.up) dy = -SPEED;
     if(gameState.input.down) dy = SPEED;
     if(gameState.input.left) dx = -SPEED;
     if(gameState.input.right) dx = SPEED;
+    
     if(dx===0 && dy===0 && p.moving) {
         const dist = Math.hypot(gameState.target.x - p.x, gameState.target.y - p.y);
         if(dist < SPEED) { p.x = gameState.target.x; p.y = gameState.target.y; p.moving = false; }
@@ -758,6 +775,7 @@ function update() {
             dx = Math.cos(angle) * SPEED; dy = Math.sin(angle) * SPEED;
         }
     } else if(dx!==0 || dy!==0) p.moving = false;
+
     if (dx !== 0 || dy !== 0) {
         if (gameState.room !== 'south' && Math.random() > 0.8) {
             gameState.footprints.push({x: p.x + 2, y: p.y + p.h, age: 1.0});
@@ -768,16 +786,19 @@ function update() {
         gameState.footprints[i].age -= 0.005;
         if (gameState.footprints[i].age <= 0) gameState.footprints.splice(i, 1);
     }
+
     let nextX = p.x + dx, nextY = p.y + dy, collided = false;
     if(nextX < 0) nextX = 0; if(nextX > GAME_WIDTH - p.w) nextX = GAME_WIDTH - p.w;
     if(nextY < 0) nextY = 0; if(nextY > GAME_HEIGHT - p.h) nextY = GAME_HEIGHT - p.h;
+
     if(gameState.room !== 'south') {
         rooms[gameState.room].entities.forEach(ent => {
             if(ent.condition && !ent.condition(gameState)) return;
-            if(['stickmen','particles', 'moon'].includes(ent.type)) return;
+            if(['stickmen','particles', 'moon'].includes(ent.type)) return; // Ignore moon for collision
             let ex=ent.x, ey=ent.y, ew=ent.w||20, eh=ent.h||20;
             if(ent.type==='tree') { ex=ent.x-ew/2; ey=ent.y-eh; }
-            if(ent.type==='npc_grandma' || ent.type==='item_pickup' || ent.type==='prop_extra') { ex=ent.x-10; ey=ent.y-10; }
+            if(ent.type==='prop_extra' || ent.type==='item_pickup') { ex=ent.x-10; ey=ent.y-10; }
+            
             if(checkRectCollide(nextX, nextY, p.w, p.h, ex, ey, ew, eh)) {
                 if(ent.type==='warp') { startRoomTransition(ent.target, ent.targetX, ent.targetY); return; }
                 else if(ent.type==='item_pickup' || ent.type==='prop_extra') { interact(ent); collided=true; }
@@ -792,8 +813,10 @@ function update() {
              if(ent.type==='npc_grandma' && checkRectCollide(nextX, nextY, p.w, p.h, ent.x-10, ent.y-10, 20, 20)) collided=true;
         });
     }
+
     if(!collided) { p.x = nextX; p.y = nextY; }
     if(dx<0) p.facing='left'; if(dx>0) p.facing='right';
+    
     gameState.anim.t += 0.05;
 }
 
@@ -801,21 +824,26 @@ function draw() {
     if(gameState.flags.endingPhase === 1) { drawGarden(); return; }
     if(gameState.flags.endingPhase === 2) { drawCabin(); return; }
     if(gameState.flags.endingPhase === 3) { drawCredits(); return; }
+
     const room = rooms[gameState.room];
     ctx.fillStyle = room.bg;
     ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+
+    // Footprints
     ctx.fillStyle = 'rgba(200,200,200,0.3)';
     gameState.footprints.forEach(fp => {
         ctx.globalAlpha = fp.age * 0.3; ctx.fillRect(fp.x, fp.y, 3, 2);
     }); ctx.globalAlpha = 1.0;
-    
+
     room.entities.forEach(e => {
         if(e.condition && !e.condition(gameState)) return;
         if(e.id === 'moon') drawMoon(e.x, e.y); 
     });
+
     room.entities.forEach(e => {
         if(e.condition && !e.condition(gameState)) return;
         if(e.id === 'moon') return;
+        
         if(e.type === 'stickmen') { if(e.id === 'crowd_bg') drawStickmen(e.y, e.alpha); }
         else if(e.type === 'tree') drawTree(e.x, e.y, e.color, e.variant);
         else if(e.type === 'bird') drawBird();
@@ -826,17 +854,22 @@ function draw() {
         else if(e.type === 'warp') { ctx.fillStyle='rgba(255,255,255,0.05)'; ctx.fillRect(e.x, e.y, e.w, e.h); }
         else if(e.type === 'particles') drawParticles(e.color);
     });
+
     drawPlayer(gameState.player.x, gameState.player.y);
+
     room.entities.forEach(e => {
         if(e.condition && !e.condition(gameState)) return;
         if(e.type === 'stickmen' && e.id === 'crowd_fg') drawStickmen(e.y, e.alpha);
     });
+
     ctx.fillStyle = '#fff';
     gameState.snow.forEach(s => {
         s.y += s.speed; if(s.y > GAME_HEIGHT) s.y = 0;
         ctx.fillRect(s.x, s.y, 1, 1);
     });
+
     drawVignette();
+
     if (gameState.transition.active) {
         let alpha = 0;
         if (gameState.transition.timer < 1.0) alpha = gameState.transition.timer; 
@@ -846,10 +879,12 @@ function draw() {
     }
 }
 
+// --- Draw Helpers ---
 function drawVignette() {
     const pulse = Math.sin(gameState.anim.t * 2) * 0.1 + 0.1; 
     let intensity = 0.4;
     if (gameState.room === 'center' && gameState.flags.transformed) intensity = 0.6 + pulse;
+    
     const grad = ctx.createRadialGradient(GAME_WIDTH/2, GAME_HEIGHT/2, 80, GAME_WIDTH/2, GAME_HEIGHT/2, 200);
     grad.addColorStop(0, 'rgba(0,0,0,0)'); grad.addColorStop(1, `rgba(0,0,0,${intensity})`);
     ctx.fillStyle = grad; ctx.fillRect(0,0,GAME_WIDTH, GAME_HEIGHT);
