@@ -203,22 +203,27 @@
     <h1>冬之脉</h1>
     <h2>Vein of Winter</h2>
     <div class="lang-select">
-        <button class="lang-btn" onclick="window.startGame('CN')">中文</button>
-        <button class="lang-btn" onclick="window.startGame('EN')">English</button>
-        <button class="lang-btn" onclick="window.startGame('JP')">日本語</button>
+        <button class="lang-btn" onclick="startGame('CN')">中文</button>
+        <button class="lang-btn" onclick="startGame('EN')">English</button>
+        <button class="lang-btn" onclick="startGame('JP')">日本語</button>
     </div>
     <p style="margin-top:30px; font-size: 12px; color: #444;">Headphones Recommended</p>
 </div>
 
 <script>
-// --- 1. GLOBAL VARIABLES ---
+// --- 1. UTILITY FUNCTIONS ---
+function checkRectCollide(x1, y1, w1, h1, x2, y2, w2, h2) {
+    return x2 < x1 + w1 && x2 + w2 > x1 && y2 < y1 + h1 && y2 + h2 > y1;
+}
+
+// --- 2. GLOBAL VARIABLES ---
 let canvas, ctx, uiDialogue, roomNameEl, endingOverlay, invRow1, invRow2;
 const invItems = {}; 
 const GAME_WIDTH = 320;
 const GAME_HEIGHT = 240;
 const SPEED = 2;
 
-// --- 2. GAME STATE ---
+// --- 3. GAME STATE ---
 const gameState = {
     lang: 'CN',
     room: 'center', 
@@ -233,7 +238,7 @@ const gameState = {
     transition: { active: false, timer: 0, nextRoom: null, nextX: 0, nextY: 0 }
 };
 
-// --- 3. TEXT DATA ---
+// --- 4. TEXT DATA ---
 const TEXT = {
     CN: {
         title: "冬之脉",
@@ -364,13 +369,137 @@ const AudioSys = {
     }
 };
 
-// --- 6. ROOMS ---
+// --- 6. LOGIC & FUNCTIONS ---
+
+function t(key, subkey) {
+    if (subkey) return TEXT[gameState.lang] ? TEXT[gameState.lang][key][subkey] : "";
+    return TEXT[gameState.lang][key];
+}
+
+function startDialogue(lines) {
+    gameState.dialogue.active = true;
+    gameState.dialogue.queue = [];
+    gameState.dialogue.callback = null;
+    uiDialogue.style.display = 'block';
+    
+    if(Array.isArray(lines)) {
+        lines.forEach(l => {
+            if(typeof l === 'string') gameState.dialogue.queue.push(l);
+            else if(l.action) gameState.dialogue.callback = l.action;
+        });
+    } else gameState.dialogue.queue.push(lines);
+    
+    nextDialogueLine();
+}
+
+function nextDialogueLine() {
+    if(gameState.dialogue.queue.length === 0) {
+        gameState.dialogue.active = false;
+        uiDialogue.style.display = 'none';
+        if(gameState.dialogue.callback) handleAction(gameState.dialogue.callback);
+        return;
+    }
+    const txt = gameState.dialogue.queue.shift();
+    uiDialogue.innerText = "";
+    let i = 0;
+    const timer = setInterval(() => {
+        uiDialogue.innerText += txt.charAt(i);
+        if(i%2===0) AudioSys.playSFX('text');
+        i++;
+        if(i >= txt.length) clearInterval(timer);
+    }, 30);
+}
+
+function interact(ent) {
+    let content = ent.logic ? ent.logic(gameState) : ent.interaction;
+    if(content) startDialogue(content);
+}
+
+function checkInteraction() {
+    const p = gameState.player;
+    const reach = 25;
+    let checkX = p.x, checkY = p.y;
+    if(p.facing==='left') checkX -= reach; if(p.facing==='right') checkX += reach;
+    if(p.facing==='up') checkY -= reach; if(p.facing==='down') checkY += reach;
+
+    rooms[gameState.room].entities.forEach(ent => {
+        if(ent.condition && !ent.condition(gameState)) return;
+        let ex=ent.x, ey=ent.y, ew=ent.w||20, eh=ent.h||20;
+        if(ent.type==='tree') { ex=ent.x-ew/2; ey=ent.y-eh; }
+        if(ent.type==='npc_grandma' || ent.type==='prop_extra' || ent.type==='item_pickup') { ex=ent.x-10; ey=ent.y-10; }
+        if(checkRectCollide(checkX, checkY, 1, 1, ex-10, ey-10, ew+20, eh+20)) interact(ent);
+    });
+}
+
+function startRoomTransition(targetId, targetX, targetY) {
+    gameState.transition = { active: true, timer: 0, nextRoom: targetId, nextX: targetX, nextY: targetY };
+    gameState.player.moving = false;
+}
+
+function changeRoomLogic(id) {
+    gameState.room = id;
+    gameState.footprints = []; 
+    updateRoomName();
+    if (id === 'center' && !gameState.flags.transformed 
+        && gameState.flags.hasDrawing && gameState.flags.hasWheelchair && gameState.flags.hasHourglass) {
+        triggerTransformation();
+    }
+    if(id === 'south') {
+        if(gameState.flags.endingPhase === 1) rooms[id].nameKey = 'garden';
+        else rooms[id].nameKey = 'south';
+        updateRoomName();
+    }
+}
+
+function triggerTransformation() {
+    gameState.flags.transformed = true;
+    invRow2.style.display = 'flex'; 
+    rooms['center'].entities.forEach(e => {
+        if(e.id === 'tree_main') e.variant = 'vein'; 
+    });
+    AudioSys.playSFX('thump');
+    setTimeout(() => {
+        startDialogue(t('dialogue', 'intro_transform'));
+        updateRoomName(); 
+    }, 500);
+}
+
+function handleAction(act) {
+    if(act === 'getDrawing') { gameState.flags.hasDrawing = true; gameState.flags.itemsCount++; invItems.drawing.classList.add('collected'); AudioSys.playSFX('pickup'); }
+    else if(act === 'getWheelchair') { gameState.flags.hasWheelchair = true; gameState.flags.itemsCount++; invItems.wheelchair.classList.add('collected'); AudioSys.playSFX('pickup'); }
+    else if(act === 'getHourglass') { gameState.flags.hasHourglass = true; gameState.flags.itemsCount++; invItems.hourglass.classList.add('collected'); AudioSys.playSFX('pickup'); }
+    else if(act === 'getCandy') { gameState.flags.hasCandy = true; gameState.flags.itemsCount++; invItems.candy.classList.add('collected'); AudioSys.playSFX('pickup'); }
+    else if(act === 'getTear') { gameState.flags.hasTear = true; gameState.flags.itemsCount++; invItems.tear.classList.add('collected'); AudioSys.playSFX('pickup'); }
+    else if(act === 'getWatch') { gameState.flags.hasWatch = true; gameState.flags.itemsCount++; invItems.watch.classList.add('collected'); AudioSys.playSFX('pickup'); }
+    else if(act === 'getFeather') { gameState.flags.gateOpen = true; AudioSys.playSFX('open'); startDialogue(t('dialogue', 'intro_ready_feather')); }
+    else if(act === 'startEnding') {
+        gameState.flags.endingPhase = 1; AudioSys.playSFX('warmth');
+        startRoomTransition('south', 140, 110);
+        setTimeout(() => startDialogue(t('dialogue', 'ending_garden')), 2500);
+    }
+    else if(act === 'triggerCabinScene') {
+        document.getElementById('ending-overlay').style.opacity = 1;
+        setTimeout(() => {
+            gameState.flags.endingPhase = 2;
+            document.getElementById('ending-overlay').style.opacity = 0;
+            document.getElementById('room-name').innerText = t('rooms', 'cabin');
+            setTimeout(() => startDialogue(t('dialogue', 'ending_cabin')), 1000);
+        }, 2000);
+    }
+    else if(act === 'finalStop') {
+        gameState.flags.endingPhase = 3;
+        document.getElementById('ending-overlay').style.opacity = 1;
+        setTimeout(() => { uiDialogue.style.display = 'none'; }, 1000);
+    }
+}
+
+// --- 7. ROOMS DATA ---
 const rooms = {
     'center': {
         nameKey: 'center', bg: '#050505',
         entities: [
-            { id: 'moon', type: 'moon', x: 160, y: 90 }, 
-            { id: 'tree_main', type: 'tree', x: 160, y: 220, w: 24, h: 40, color: '#aa0000', variant: 'tree', 
+            { id: 'moon', type: 'moon', x: 160, y: 90 }, // Moon first
+            { id: 'tree_main', type: 'tree', x: 160, y: 220, w: 24, h: 40, color: '#aa0000', variant: 'tree', // Initial broken stump at Y=220
               logic: (s) => {
                   if (s.flags.gateOpen) return t('dialogue', 'intro_gate_open');
                   if (!s.flags.transformed) return t('dialogue', 'intro_start');
@@ -437,6 +566,7 @@ const rooms = {
         entities: [
             { id: 'path_back', type: 'warp', x: 130, y: 230, w: 60, h: 10, target: 'center', targetX: 160, targetY: 20 },
             { id: 'path_room', type: 'warp', x: 130, y: 0, w: 60, h: 10, target: 'north_room', targetX: 160, targetY: 180 }, 
+            // Fix: Hourglass at entrance (Y=200)
             { id: 'hourglass', type: 'item_pickup', x: 160, y: 200, w: 15, h: 15, color: '#da0',
               condition: (s) => !s.flags.hasHourglass, logic: () => t('dialogue', 'hourglass_pickup') },
             { id: 'decor', type: 'particles', color: '#daa520' }
@@ -462,136 +592,8 @@ const rooms = {
     }
 };
 
-// --- 7. HELPER FUNCTIONS ---
-function checkRectCollide(x1, y1, w1, h1, x2, y2, w2, h2) {
-    return x2 < x1 + w1 && x2 + w2 > x1 && y2 < y1 + h1 && y2 + h2 > y1;
-}
-
-function t(key, subkey) {
-    if (subkey) return TEXT[gameState.lang] ? TEXT[gameState.lang][key][subkey] : "";
-    return TEXT[gameState.lang][key];
-}
-
-// --- 8. LOGIC FUNCTIONS (Restored) ---
-function checkInteraction() {
-    const p = gameState.player;
-    const reach = 25;
-    let checkX = p.x, checkY = p.y;
-    if(p.facing==='left') checkX -= reach; if(p.facing==='right') checkX += reach;
-    if(p.facing==='up') checkY -= reach; if(p.facing==='down') checkY += reach;
-
-    rooms[gameState.room].entities.forEach(ent => {
-        if(ent.condition && !ent.condition(gameState)) return;
-        let ex=ent.x, ey=ent.y, ew=ent.w||20, eh=ent.h||20;
-        if(ent.type==='tree') { ex=ent.x-ew/2; ey=ent.y-eh; }
-        if(ent.type==='npc_grandma' || ent.type==='prop_extra' || ent.type==='item_pickup') { ex=ent.x-10; ey=ent.y-10; }
-        if(checkRectCollide(checkX, checkY, 1, 1, ex-10, ey-10, ew+20, eh+20)) interact(ent);
-    });
-}
-
-function interact(ent) {
-    let content = ent.logic ? ent.logic(gameState) : ent.interaction;
-    if(content) startDialogue(content);
-}
-
-function startDialogue(lines) {
-    gameState.dialogue.active = true;
-    gameState.dialogue.queue = [];
-    gameState.dialogue.callback = null;
-    uiDialogue.style.display = 'block';
-    
-    if(Array.isArray(lines)) {
-        lines.forEach(l => {
-            if(typeof l === 'string') gameState.dialogue.queue.push(l);
-            else if(l.action) gameState.dialogue.callback = l.action;
-        });
-    } else gameState.dialogue.queue.push(lines);
-    
-    nextDialogueLine();
-}
-
-function nextDialogueLine() {
-    if(gameState.dialogue.queue.length === 0) {
-        gameState.dialogue.active = false;
-        uiDialogue.style.display = 'none';
-        if(gameState.dialogue.callback) handleAction(gameState.dialogue.callback);
-        return;
-    }
-    const txt = gameState.dialogue.queue.shift();
-    uiDialogue.innerText = "";
-    let i = 0;
-    const timer = setInterval(() => {
-        uiDialogue.innerText += txt.charAt(i);
-        if(i%2===0) AudioSys.playSFX('text');
-        i++;
-        if(i >= txt.length) clearInterval(timer);
-    }, 30);
-}
-
-function startRoomTransition(targetId, targetX, targetY) {
-    gameState.transition = { active: true, timer: 0, nextRoom: targetId, nextX: targetX, nextY: targetY };
-    gameState.player.moving = false;
-}
-
-function changeRoomLogic(id) {
-    gameState.room = id;
-    gameState.footprints = []; 
-    updateRoomName();
-    if (id === 'center' && !gameState.flags.transformed 
-        && gameState.flags.hasDrawing && gameState.flags.hasWheelchair && gameState.flags.hasHourglass) {
-        triggerTransformation();
-    }
-    if(id === 'south') {
-        if(gameState.flags.endingPhase === 1) rooms[id].nameKey = 'garden';
-        else rooms[id].nameKey = 'south';
-        updateRoomName();
-    }
-}
-
-function triggerTransformation() {
-    gameState.flags.transformed = true;
-    invRow2.style.display = 'flex'; 
-    rooms['center'].entities.forEach(e => {
-        if(e.id === 'tree_main') e.variant = 'vein'; 
-    });
-    AudioSys.playSFX('thump');
-    setTimeout(() => {
-        startDialogue(t('dialogue', 'intro_transform'));
-        updateRoomName(); 
-    }, 500);
-}
-
-function handleAction(act) {
-    if(act === 'getDrawing') { gameState.flags.hasDrawing = true; gameState.flags.itemsCount++; invItems.drawing.classList.add('collected'); AudioSys.playSFX('pickup'); }
-    else if(act === 'getWheelchair') { gameState.flags.hasWheelchair = true; gameState.flags.itemsCount++; invItems.wheelchair.classList.add('collected'); AudioSys.playSFX('pickup'); }
-    else if(act === 'getHourglass') { gameState.flags.hasHourglass = true; gameState.flags.itemsCount++; invItems.hourglass.classList.add('collected'); AudioSys.playSFX('pickup'); }
-    else if(act === 'getCandy') { gameState.flags.hasCandy = true; gameState.flags.itemsCount++; invItems.candy.classList.add('collected'); AudioSys.playSFX('pickup'); }
-    else if(act === 'getTear') { gameState.flags.hasTear = true; gameState.flags.itemsCount++; invItems.tear.classList.add('collected'); AudioSys.playSFX('pickup'); }
-    else if(act === 'getWatch') { gameState.flags.hasWatch = true; gameState.flags.itemsCount++; invItems.watch.classList.add('collected'); AudioSys.playSFX('pickup'); }
-    else if(act === 'getFeather') { gameState.flags.gateOpen = true; AudioSys.playSFX('open'); startDialogue(t('dialogue', 'intro_ready_feather')); }
-    else if(act === 'startEnding') {
-        gameState.flags.endingPhase = 1; AudioSys.playSFX('warmth');
-        startRoomTransition('south', 140, 110);
-        setTimeout(() => startDialogue(t('dialogue', 'ending_garden')), 2500);
-    }
-    else if(act === 'triggerCabinScene') {
-        document.getElementById('ending-overlay').style.opacity = 1;
-        setTimeout(() => {
-            gameState.flags.endingPhase = 2;
-            document.getElementById('ending-overlay').style.opacity = 0;
-            document.getElementById('room-name').innerText = t('rooms', 'cabin');
-            setTimeout(() => startDialogue(t('dialogue', 'ending_cabin')), 1000);
-        }, 2000);
-    }
-    else if(act === 'finalStop') {
-        gameState.flags.endingPhase = 3;
-        document.getElementById('ending-overlay').style.opacity = 1;
-        setTimeout(() => { uiDialogue.style.display = 'none'; }, 1000);
-    }
-}
-
-// --- 9. INITIALIZATION & LOOP ---
-window.startGame = function(lang) {
+// --- 8. INITIALIZATION & GAME LOOP ---
+function startGame(lang) {
     try {
         gameState.lang = lang;
         AudioSys.init();
@@ -611,7 +613,7 @@ window.startGame = function(lang) {
         
         updateRoomName();
     } catch (e) { console.error(e); }
-};
+}
 
 function updateRoomName() {
     if (!rooms[gameState.room]) return;
@@ -653,7 +655,7 @@ function bindControls() {
 
 function init() {
     canvas = document.getElementById('gameCanvas');
-    ctx = canvas.getContext('2d');
+    ctx = canvas.getContext('2d'); // **FIXED: This was missing!**
     uiDialogue = document.getElementById('dialogue-box');
     roomNameEl = document.getElementById('room-name');
     endingOverlay = document.getElementById('ending-overlay');
@@ -992,4 +994,3 @@ window.onload = function() {
 </script>
 </body>
 </html>
-
