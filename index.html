@@ -16,51 +16,61 @@
             height: 100vh;
             color: #ccc;
             font-family: 'Courier New', Courier, monospace;
-            touch-action: none; /* 禁止瀏覽器默認縮放/滾動 */
+            touch-action: none;
+            -webkit-user-select: none;
+            user-select: none;
         }
 
         #game-container {
             position: relative;
-            width: 100%;
-            height: 100%;
+            /* 电脑端核心逻辑：保持比例，不要铺满 */
+            width: auto;
+            height: auto;
+            max-width: 100%;
+            max-height: 100%;
+            aspect-ratio: 4/3;
             display: flex;
             justify-content: center;
             align-items: center;
-            background: #111;
+            background: #000;
+            box-shadow: 0 0 30px rgba(0, 0, 0, 0.8);
         }
 
         canvas {
-            image-rendering: pixelated;
-            box-shadow: 0 0 20px rgba(0, 0, 50, 0.5);
-            max-width: 100%;
-            max-height: 100%;
+            image-rendering: pixelated; /* 关键：保持像素清晰 */
+            width: 100%;
+            height: 100%;
+            display: block;
+            box-shadow: 0 0 20px rgba(0, 0, 50, 0.2);
             transition: filter 2s ease;
         }
 
-        /* 掃描線效果 */
+        /* 手机端适配：强制填满屏幕 */
+        @media (max-width: 600px) {
+            #game-container {
+                width: 100%;
+                height: 100%;
+                aspect-ratio: unset;
+            }
+            canvas {
+                object-fit: contain; /* 保持比例，可能有黑边，但画面不拉伸 */
+            }
+        }
+
+        /* 扫描线效果 */
         .scanlines {
             position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: linear-gradient(
-                to bottom,
-                rgba(255,255,255,0),
-                rgba(255,255,255,0) 50%,
-                rgba(0,0,0,0.1) 50%,
-                rgba(0,0,0,0.1)
-            );
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(to bottom, rgba(255,255,255,0), rgba(255,255,255,0) 50%, rgba(0,0,0,0.1) 50%, rgba(0,0,0,0.1));
             background-size: 100% 4px;
             pointer-events: none;
             z-index: 10;
         }
 
-        /* 房間標題 */
+        /* UI */
         .room-title {
             position: absolute;
-            top: 20px;
-            left: 20px;
+            top: 20px; left: 20px;
             color: rgba(255, 255, 255, 0.6);
             font-size: 14px;
             z-index: 15;
@@ -68,39 +78,26 @@
             pointer-events: none;
         }
 
-        /* 物品欄 */
         #inventory {
             position: absolute;
-            top: 20px;
-            right: 20px;
-            display: flex;
-            gap: 10px;
+            top: 20px; right: 20px;
+            display: flex; gap: 10px;
             z-index: 15;
             pointer-events: none;
         }
         .item {
-            width: 20px;
-            height: 20px;
+            width: 20px; height: 20px;
             background: rgba(0,0,0,0.5);
             border: 1px solid #555;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            font-size: 12px;
-            opacity: 0.3;
+            display: flex; justify-content: center; align-items: center;
+            font-size: 12px; opacity: 0.3;
         }
-        .item.collected {
-            opacity: 1;
-            border-color: #fff;
-            box-shadow: 0 0 5px #fff;
-        }
+        .item.collected { opacity: 1; border-color: #fff; box-shadow: 0 0 5px #fff; }
 
-        /* 對話框 */
         #ui-layer {
             position: absolute;
             bottom: 20px;
-            left: 50%;
-            transform: translateX(-50%);
+            left: 50%; transform: translateX(-50%);
             width: 90%;
             max-width: 600px;
             background: #000;
@@ -110,11 +107,10 @@
             line-height: 1.5;
             display: none;
             z-index: 20;
-            user-select: none;
             box-shadow: 0 0 10px #fff;
+            pointer-events: none;
         }
 
-        /* 結局覆蓋層 */
         #ending-overlay {
             position: absolute;
             top: 0; left: 0; width: 100%; height: 100%;
@@ -125,124 +121,124 @@
             transition: opacity 3s;
         }
 
-        /* 開始/音頻提示 */
-        #start-prompt {
-            position: absolute;
-            top: 50%; left: 50%;
-            transform: translate(-50%, -50%);
-            color: #fff;
-            background: rgba(0,0,0,0.8);
-            padding: 20px;
-            border: 1px solid #fff;
-            z-index: 50;
-            text-align: center;
-            cursor: pointer;
-        }
-
-        /* --- 虛擬手把 (Mobile Controls) --- */
+        /* --- 虚拟手把 (默认隐藏) --- */
         #mobile-controls {
-            display: none; /* 默認隱藏，JS檢測到觸摸時顯示 */
-            position: absolute;
-            bottom: 20px;
-            width: 100%;
-            height: 120px;
+            display: none; 
+            position: fixed; /* 固定在屏幕上，不受容器限制 */
+            bottom: 0; left: 0; width: 100%; height: 100%;
             z-index: 40;
-            pointer-events: none; /* 讓點擊穿透空白區域 */
+            pointer-events: none;
         }
+        /* JS 激活时显示 */
+        #mobile-controls.visible { display: block; }
 
-        /* 顯示條件：粗指針設備 (觸摸屏) */
-        @media (pointer: coarse) {
-            #mobile-controls { display: block; }
-        }
-
-        .dpad-container {
+        .dpad-area {
             position: absolute;
-            bottom: 10px;
-            left: 20px;
-            width: 120px;
-            height: 120px;
+            bottom: 40px; left: 30px;
+            width: 140px; height: 140px;
             pointer-events: auto;
         }
 
-        .action-btn-container {
+        .action-area {
             position: absolute;
-            bottom: 20px;
-            right: 30px;
-            width: 70px;
-            height: 70px;
+            bottom: 60px; right: 40px;
+            width: 80px; height: 80px;
             pointer-events: auto;
         }
 
-        .btn {
+        .dpad-btn, .btn-a {
             background: rgba(255, 255, 255, 0.15);
-            border: 2px solid rgba(255, 255, 255, 0.3);
-            border-radius: 50%;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            display: flex; justify-content: center; align-items: center;
+            color: rgba(255,255,255,0.4);
+            touch-action: none;
+            position: absolute;
             backdrop-filter: blur(2px);
+        }
+        .active-btn { background: rgba(255, 255, 255, 0.4) !important; }
+
+        .d-up { top: 0; left: 33%; width: 34%; height: 33%; border-radius: 8px 8px 0 0; }
+        .d-down { bottom: 0; left: 33%; width: 34%; height: 33%; border-radius: 0 0 8px 8px; }
+        .d-left { top: 33%; left: 0; width: 33%; height: 34%; border-radius: 8px 0 0 8px; }
+        .d-right { top: 33%; right: 0; width: 33%; height: 34%; border-radius: 0 8px 8px 0; }
+        
+        .btn-a {
+            width: 100%; height: 100%;
+            border-radius: 50%;
+            font-size: 24px; font-weight: bold;
+            color: #fff;
+        }
+
+        /* 开始画面 */
+        #start-screen {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.95);
+            z-index: 100;
             display: flex;
+            flex-direction: column;
             justify-content: center;
             align-items: center;
-            color: rgba(255, 255, 255, 0.7);
-            user-select: none;
-            touch-action: none;
+            color: #fff;
+            padding: 20px;
+            text-align: center;
         }
-        
-        .btn:active { background: rgba(255, 255, 255, 0.4); }
-
-        /* D-Pad */
-        .dpad-cross {
-            position: relative;
-            width: 100%; height: 100%;
+        #start-btn {
+            margin-top: 30px;
+            padding: 15px 30px;
+            border: 2px solid #fff;
+            background: transparent;
+            color: #fff;
+            font-family: inherit;
+            font-size: 18px;
+            cursor: pointer;
+            transition: all 0.3s;
         }
-        .dpad-up { position: absolute; top: 0; left: 33%; width: 33%; height: 33%; border-radius: 5px 5px 0 0; }
-        .dpad-down { position: absolute; bottom: 0; left: 33%; width: 33%; height: 33%; border-radius: 0 0 5px 5px; }
-        .dpad-left { position: absolute; top: 33%; left: 0; width: 33%; height: 33%; border-radius: 5px 0 0 5px; }
-        .dpad-right { position: absolute; top: 33%; right: 0; width: 33%; height: 33%; border-radius: 0 5px 5px 0; }
-        .dpad-center { position: absolute; top: 33%; left: 33%; width: 33%; height: 33%; background: rgba(255,255,255,0.1); border: none; }
-
-        /* Action Btn */
-        .btn-action {
-            width: 100%; height: 100%;
-            font-size: 24px;
-            font-weight: bold;
-        }
-
+        #start-btn:hover { background: #fff; color: #000; }
     </style>
 </head>
 <body>
 
+<!-- 游戏容器 -->
 <div id="game-container">
     <canvas id="gameCanvas" width="320" height="240"></canvas>
     <div class="scanlines"></div>
     <div class="room-title" id="room-name"></div>
     <div id="ending-overlay"></div>
     
-    <div id="start-prompt">點擊畫面開始 (開啟聲音)</div>
-
     <div id="inventory">
         <div class="item" id="item-west" title="爸爸的糖果">🍬</div>
         <div class="item" id="item-east" title="妈妈的眼泪">💧</div>
         <div class="item" id="item-north" title="无法飞翔">🪶</div>
     </div>
 
-    <!-- 虛擬手把 -->
-    <div id="mobile-controls">
-        <div class="dpad-container">
-            <div class="dpad-cross">
-                <div class="btn dpad-up" data-key="up">▲</div>
-                <div class="btn dpad-left" data-key="left">◀</div>
-                <div class="btn dpad-center"></div>
-                <div class="btn dpad-right" data-key="right">▶</div>
-                <div class="btn dpad-down" data-key="down">▼</div>
-            </div>
-        </div>
-        <div class="action-btn-container">
-            <div class="btn btn-action" data-key="action">A</div>
-        </div>
-    </div>
-
     <div id="ui-layer">
         <div id="dialogue-text"></div>
     </div>
+</div>
+
+<!-- 虚拟手把 (独立于容器，覆盖全屏) -->
+<div id="mobile-controls">
+    <div class="dpad-area">
+        <div class="dpad-btn d-up" data-key="up">▲</div>
+        <div class="dpad-btn d-left" data-key="left">◀</div>
+        <div class="dpad-btn d-right" data-key="right">▶</div>
+        <div class="dpad-btn d-down" data-key="down">▼</div>
+    </div>
+    <div class="action-area">
+        <div class="btn-a" data-key="action">A</div>
+    </div>
+</div>
+
+<!-- 开始画面 -->
+<div id="start-screen">
+    <h2 style="margin-bottom:10px; letter-spacing: 2px;">冬之脉</h2>
+    <div style="font-size:12px; color:#888; margin-bottom: 20px;">Vein of Winter</div>
+    <p style="font-size:13px; color:#aaa; max-width: 300px; line-height: 1.6;">
+        如果使用手机游玩，请关闭静音模式。<br>
+        推荐佩戴耳机。
+    </p>
+    <button id="start-btn">开始观测</button>
 </div>
 
 <script>
@@ -252,7 +248,10 @@ const uiLayer = document.getElementById('ui-layer');
 const uiText = document.getElementById('dialogue-text');
 const roomNameEl = document.getElementById('room-name');
 const endingOverlay = document.getElementById('ending-overlay');
-const startPrompt = document.getElementById('start-prompt');
+const startScreen = document.getElementById('start-screen');
+const startBtn = document.getElementById('start-btn');
+const mobileControls = document.getElementById('mobile-controls');
+
 const invItems = {
     west: document.getElementById('item-west'),
     east: document.getElementById('item-east'),
@@ -263,23 +262,30 @@ const GAME_WIDTH = 320;
 const GAME_HEIGHT = 240;
 const SPEED = 2;
 
-// --- 音頻系統 ---
+// --- 音頻系統 (iOS 修复版) ---
 const AudioSys = {
     ctx: null,
     masterGain: null,
-    bgmOscs: [],
     isPlaying: false,
     notes: [220, 261.63, 329.63, 196.00, 246.94, 293.66], 
     
     init: function() {
-        if (this.ctx) return;
-        const AudioContext = window.AudioContext || window.webkitAudioContext;
-        this.ctx = new AudioContext();
-        this.masterGain = this.ctx.createGain();
-        this.masterGain.gain.value = 0.3; 
-        this.masterGain.connect(this.ctx.destination);
-        this.isPlaying = true;
-        this.scheduleNextNote();
+        if (!this.ctx) {
+            const AudioContext = window.AudioContext || window.webkitAudioContext;
+            this.ctx = new AudioContext();
+            this.masterGain = this.ctx.createGain();
+            this.masterGain.gain.value = 0.4; 
+            this.masterGain.connect(this.ctx.destination);
+        }
+        if (this.ctx.state === 'suspended') this.ctx.resume();
+
+        // 播放静音音符解锁
+        this.playTone(440, 'sine', 0.1, 0.001);
+
+        if (!this.isPlaying) {
+            this.isPlaying = true;
+            this.scheduleNextNote();
+        }
     },
 
     playTone: function(freq, type='sine', duration=0.5, vol=0.1) {
@@ -288,11 +294,9 @@ const AudioSys = {
         const gain = this.ctx.createGain();
         osc.type = type;
         osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
-        
         gain.gain.setValueAtTime(0, this.ctx.currentTime);
         gain.gain.linearRampToValueAtTime(vol, this.ctx.currentTime + 0.05);
         gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + duration);
-
         osc.connect(gain);
         gain.connect(this.masterGain);
         osc.start();
@@ -301,6 +305,8 @@ const AudioSys = {
 
     playSFX: function(name) {
         if (!this.ctx) return;
+        if (this.ctx.state === 'suspended') this.ctx.resume();
+
         switch(name) {
             case 'step': this.playNoise(0.05, 0.05); break;
             case 'text': this.playTone(800 + Math.random()*200, 'square', 0.05, 0.02); break;
@@ -357,7 +363,7 @@ const gameState = {
     anim: { t: 0, dragon: [], bird: {x:50, y:50, tx:50, ty:50} }
 };
 
-// --- 房間數據 ---
+// --- 房间数据 ---
 
 const rooms = {
     'center': {
@@ -478,23 +484,33 @@ const rooms = {
     }
 };
 
-// --- 初始化與事件綁定 ---
+// --- 初始化与事件绑定 ---
 
-startPrompt.onclick = () => {
+startBtn.onclick = () => {
     AudioSys.init();
-    startPrompt.style.display = 'none';
+    startScreen.style.display = 'none';
+    
+    // 检测是否为触摸设备来显示手把
+    if ('ontouchstart' in window || navigator.maxTouchPoints > 0) {
+        mobileControls.classList.add('visible');
+        // 手机模式下调整UI对话框位置防止遮挡
+        uiLayer.style.bottom = '40%';
+    }
 };
 
-// 虛擬手把事件
+// 虚拟手把事件
 function bindTouchControls() {
-    const btns = document.querySelectorAll('.btn');
+    const btns = document.querySelectorAll('.dpad-btn, .btn-a');
     
     btns.forEach(btn => {
         const key = btn.dataset.key;
         if(!key) return;
 
         const handleDown = (e) => {
-            e.preventDefault();
+            if(e.cancelable) e.preventDefault(); 
+            btn.classList.add('active-btn');
+            AudioSys.init(); // 再次尝试唤醒音频
+
             if (key === 'action') {
                 if (gameState.dialogue.active) {
                     nextDialogueLine();
@@ -507,14 +523,16 @@ function bindTouchControls() {
         };
 
         const handleUp = (e) => {
-            e.preventDefault();
+            if(e.cancelable) e.preventDefault();
+            btn.classList.remove('active-btn');
             if (key !== 'action') {
                 gameState.input[key] = false;
             }
         };
 
-        btn.addEventListener('touchstart', handleDown);
-        btn.addEventListener('touchend', handleUp);
+        btn.addEventListener('touchstart', handleDown, {passive: false});
+        btn.addEventListener('touchend', handleUp, {passive: false});
+        // 电脑测试用
         btn.addEventListener('mousedown', handleDown);
         btn.addEventListener('mouseup', handleUp);
     });
@@ -524,7 +542,7 @@ function init() {
     for(let i=0; i<50; i++) gameState.snow.push({x: Math.random() * GAME_WIDTH, y: Math.random() * GAME_HEIGHT, speed: Math.random() * 1 + 0.5});
     for(let i=0; i<20; i++) gameState.anim.dragon.push({x: -50 - i*15, y: 50});
     setupInput();
-    bindTouchControls(); // 綁定手把
+    bindTouchControls(); 
     changeRoom('center');
     requestAnimationFrame(gameLoop);
 }
@@ -538,7 +556,7 @@ function changeRoom(roomId) {
     }
 }
 
-// --- 邏輯處理 ---
+// --- 逻辑处理 ---
 
 function handleAction(action) {
     if (action === 'getWest') {
@@ -599,7 +617,7 @@ function handleAction(action) {
     return false;
 }
 
-// --- 繪圖與更新 ---
+// --- 绘图与更新 ---
 
 function update() {
     if (gameState.dialogue.active) return;
@@ -613,7 +631,7 @@ function update() {
     if (gameState.input.left) dx = -SPEED;
     if (gameState.input.right) dx = SPEED;
     
-    // 點擊移動 (如果沒有使用手把輸入)
+    // 鼠标点击移动 (作为辅助)
     if (dx === 0 && dy === 0 && gameState.player.moving) {
         const dist = Math.hypot(gameState.target.x - p.x, gameState.target.y - p.y);
         if (dist < SPEED) {
@@ -651,11 +669,8 @@ function update() {
                 } else if (e.type === 'tree' || e.type === 'solid') {
                     collided = true;
                 } else if (['bird','dragon','light','item_pickup','npc_grandma'].includes(e.type)) {
-                    // 如果是用手把移動，不自動觸發對話，除非是強觸發類型? 
-                    // 這裡改為: 碰到就不走了，需要按A鍵觸發。
-                    // 但是物品撿取應該自動觸發嗎? 為了手把體驗，物品撿取可以自動，對話要按A。
                     if (e.type === 'item_pickup') {
-                        interact(e);
+                        interact(e); 
                     }
                     collided = true;
                 }
@@ -666,7 +681,7 @@ function update() {
         for (let e of currentRoom.entities) {
              if (e.type === 'npc_grandma') {
                  if (checkRectCollide(pRect.l, pRect.t, p.w, p.h, e.x-10, e.y-10, 20, 20)) {
-                     collided = true; // 靠近就停，按A說話
+                     collided = true; // 需按键对话
                  }
              } else if (e.type === 'warp' && gameState.flags.endingPhase === 0) {
                  if (checkRectCollide(pRect.l, pRect.t, p.w, p.h, e.x, e.y, e.w, e.h)) {
@@ -728,7 +743,7 @@ function draw() {
     });
 }
 
-// --- 場景 ---
+// --- 场景 ---
 
 function drawGardenScene() {
     ctx.fillStyle = '#87ceeb'; ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
@@ -774,13 +789,13 @@ function drawCredits() {
     ctx.fillStyle = '#888';
     ctx.fillText("Vein of Winter", GAME_WIDTH/2, 100);
     ctx.fillStyle = '#ccc';
-    ctx.fillText("感謝您的遊玩與陪伴", GAME_WIDTH/2, 140);
+    ctx.fillText("感谢您的游玩与陪伴", GAME_WIDTH/2, 140);
     if (t % 50 > 25) {
-        ctx.fillText("[ 刷新頁面重來 ]", GAME_WIDTH/2, 200);
+        ctx.fillText("[ 刷新页面重来 ]", GAME_WIDTH/2, 200);
     }
 }
 
-// --- 組件 ---
+// --- 组件 ---
 
 function drawPlayer(x, y) {
     const p = gameState.player;
@@ -979,20 +994,25 @@ function setupInput() {
             case 'd': case 'arrowright': gameState.input.right = false; break;
         }
     });
+    // 鼠标点击作为辅助移动，仅当不在移动端显示控制时，或者点击位置不在控制区
     canvas.addEventListener('pointerdown', (e) => {
         if (gameState.dialogue.active) { nextDialogueLine(); return; }
+        
+        // 如果是触摸设备且显示了控制，这里不处理点击移动（依靠手把）
+        // 除非点击的是对话框或非UI区域
+        const isMobile = mobileControls.classList.contains('visible');
+        if (isMobile) return; 
+
         const rect = canvas.getBoundingClientRect();
+        // 计算缩放比例
         const scaleX = GAME_WIDTH / rect.width;
         const scaleY = GAME_HEIGHT / rect.height;
+        
         const clickX = (e.clientX - rect.left) * scaleX;
         const clickY = (e.clientY - rect.top) * scaleY;
         
-        // 點擊移動保留作為輔助（非手把操作時）
-        // 這裡做一個簡單判斷：如果點擊區域不在手把範圍內
-        const isInControls = (clickY > GAME_HEIGHT - 60); // 簡單估算手把高度
-        
-        if (gameState.flags.endingPhase === 0 && !isInControls) {
-            let clickedEntity = false;
+        let clickedEntity = false;
+        if (gameState.flags.endingPhase === 0) {
             const currentRoom = rooms[gameState.room];
             for(let e of currentRoom.entities) {
                  if (e.condition && !e.condition(gameState)) continue;
@@ -1004,12 +1024,12 @@ function setupInput() {
                      interact(e); clickedEntity = true; break;
                  }
             }
-            
-            if(!clickedEntity) {
-                gameState.target.x = clickX - gameState.player.w/2;
-                gameState.target.y = clickY - gameState.player.h/2;
-                gameState.player.moving = true;
-            }
+        }
+
+        if(!clickedEntity && gameState.flags.endingPhase === 0) {
+            gameState.target.x = clickX - gameState.player.w/2;
+            gameState.target.y = clickY - gameState.player.h/2;
+            gameState.player.moving = true;
         }
     });
 }
